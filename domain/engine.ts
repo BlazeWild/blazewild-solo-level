@@ -118,6 +118,13 @@ function penalty(s: State, q: Instance, now: string) {
     ),
   });
 }
+function surprisePenalty(s: State, q: Instance, now: string) {
+  if (!q.proofRequired || s.settings.penaltyMode === "paused") return;
+  const day = localDate(q.dueAt, s.settings.timezone);
+  const earned = s.ledger.filter(l => l.date === day && !l.reversed && l.xp > 0).reduce((sum, l) => sum + l.xp, 0);
+  const amount = Math.floor(earned * 0.25);
+  if (amount > 0) entry(s, now, `surprise-expiry:${q.id}:${q.generation}`, { questId: q.id, date: day, xp: -Math.min(amount, totals(s).xp) });
+}
 export const completionDeadline = (q: Instance) =>
   q.proofRequired
     ? Date.parse(q.dueAt) + q.grace * 60000
@@ -181,7 +188,8 @@ export function reconcile(
           continue;
         }
         q.status = "missed";
-        penalty(s, q, now);
+        if (q.proofRequired) surprisePenalty(s, q, now);
+        else penalty(s, q, now);
       } else if (Date.parse(now) >= Date.parse(q.opensAt))
         q.status = "available";
     }

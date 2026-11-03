@@ -303,3 +303,16 @@ test("recurrence uses the template timezone even when the profile is a different
     ),
   );
 });
+test("missed surprise deducts 25 percent of today's positive XP and never creates debt", () => {
+  const s = fresh("2026-12-31T00:00:00.000Z");
+  s.ledger.push({ id: "earned", key: "earned", at: "2026-12-31T01:00:00.000Z", date: "2026-12-31", kind: "completion", lifetime: 100, xp: 100, hp: 0, points: 0 });
+  s.templates.push({ ...templateSchema.parse({ title: "Surprise quest: Test", category: "Consistency", habit: "walking", difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "06:00", end: "22:30", startDate: "2026-12-31", grace: 0, required: false, penalty: 0, proofRequired: true }), id: "surprise", createdAt: s.createdAt });
+  materialize(s, s.createdAt);
+  reconcile(s, "2026-12-31T17:00:01.000Z");
+  assert.equal(totals(s).xp, 75);
+  reconcile(s, "2026-12-31T17:01:00.000Z");
+  assert.equal(totals(s).xp, 75);
+  const zero = fresh("2026-12-31T00:00:00.000Z");
+  zero.templates.push({ ...s.templates[0], id: "zero", createdAt: zero.createdAt }); materialize(zero, zero.createdAt); reconcile(zero, "2026-12-31T17:00:01.000Z");
+  assert.equal(totals(zero).xp, 0);
+});

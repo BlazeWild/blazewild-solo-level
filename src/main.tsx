@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DateTime } from "luxon";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import {
   ArrowUpRight,
@@ -724,7 +726,6 @@ function App() {
                 </div>
               </div>
             </div>
-            {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p></div><div><button onClick={() => setSelectedQuest(surprise)}>View surprise details</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
             <div className="grid">
               <section className="card">
                 <div className="section-heading">
@@ -746,6 +747,7 @@ function App() {
                 )}
               </section>
               <aside>
+                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div><button onClick={() => setSelectedQuest(surprise)}>View details</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
                 <div className="card">
                   <span className="tag">18:30 · CLOSE THE WORKDAY</span>
                   <h2>
@@ -1583,9 +1585,9 @@ function App() {
           }}
         />
       )}
-      {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline." : "Complete within one hour after it becomes available."}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : "· optional, no penalty"}</p></Dialog>}
+      {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline. Missing it deducts 25% of today’s positive XP gain; 0 XP gained means 0 XP lost." : "Complete within one hour after it becomes available."}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : selectedQuest.proofRequired ? "· surprise penalty applies if missed" : "· optional, no penalty"}</p></Dialog>}
       <button className="agent-fab" onClick={() => setAgentOpen(v => !v)}>{agentOpen ? "Close" : "Ask Agent"}</button>
-      {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b><p>{m.text}</p></div>)}</div><form onSubmit={(e) => { e.preventDefault(); void sendAgent(); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="What remains today?" /></label><small className="muted">Enter sends · Shift+Enter adds a new line</small><button className="primary" disabled={busy}>{busy ? "Thinking…" : "Send"}</button></form></aside>}
+      {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b>{m.role === "agent" ? <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown></div> : <p>{m.text}</p>}</div>)}</div><form onSubmit={(e) => { e.preventDefault(); void sendAgent(); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="What remains today?" /></label><small className="muted">Enter sends · Shift+Enter adds a new line</small><button className="primary" disabled={busy}>{busy ? "Thinking…" : "Send"}</button></form></aside>}
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />

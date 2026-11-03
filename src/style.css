@@ -770,13 +770,24 @@ footer > span:first-child {
 .quest { background: transparent !important; }
 .phase-divider { display: flex; align-items: center; gap: 12px; color: #60a5fa; margin: 18px 0 4px; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .phase-divider::after { content: ""; height: 1px; flex: 1; background: #2563eb; opacity: .75; }
-.surprise-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-left: 3px solid #a3e635; margin-bottom: 18px; }
+.surprise-card { display: block; border-left: 3px solid #a3e635; margin-bottom: 18px; }
 .surprise-card > div:last-child { display: flex; gap: 8px; flex-wrap: wrap; }
+.penalty-note { padding: 9px 10px; border-left: 2px solid #f59e0b; background: rgba(245, 158, 11, .06); font-size: 12px; }
 .text-button { border: 0; padding: 0 0 0 10px; background: transparent; color: var(--accent, #8b5cf6); font-size: 11px; }
 .clickable { cursor: pointer; }
 .next-line { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
 .agent-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; border-radius: 999px; padding: 14px 20px; box-shadow: 0 12px 35px rgba(0,0,0,.35); }
-.agent-window { position: fixed; right: 24px; bottom: 84px; z-index: 39; width: min(420px, calc(100vw - 32px)); max-height: min(680px, calc(100vh - 120px)); overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.agent-window { position: fixed; right: 24px; bottom: 84px; z-index: 39; width: min(720px, calc(100vw - 48px)); height: min(760px, calc(100vh - 120px)); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.agent-window .chat-log { flex: 1; max-height: none; overflow: auto; }
+.agent-window form { flex: 0 0 auto; }
+.markdown { line-height: 1.55; overflow-wrap: anywhere; }
+.markdown h1, .markdown h2, .markdown h3 { margin: 14px 0 7px; }
+.markdown p, .markdown ul, .markdown ol { margin: 7px 0; }
+.markdown table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+.markdown th, .markdown td { border: 1px solid rgba(148,163,184,.25); padding: 7px; text-align: left; }
+.markdown th { background: rgba(96,165,250,.09); }
+.markdown code { padding: 2px 5px; border-radius: 4px; background: rgba(148,163,184,.12); }
+.markdown pre { overflow: auto; padding: 12px; background: rgba(2,6,23,.55); border-radius: 8px; }
 @media (max-width: 720px) {
   .login-page { grid-template-columns: 1fr; }
   .agent-fab { right: 16px; bottom: 16px; }

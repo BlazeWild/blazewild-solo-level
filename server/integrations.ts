@@ -285,7 +285,7 @@ export async function chat(message: string) {
   const s = read(), now = new Date().toISOString(), today = localDate(now, s.settings.timezone);
   const quests = s.instances.filter(q => q.occurrence === today).map(q => ({ title: q.title, status: q.status, starts: q.opensAt, due: q.dueAt }));
   const recent = s.logs.slice(-7).map(l => ({ date: l.date, sleep: l.sleep, weight: l.weight, steps: l.steps, fatigue: l.fatigue }));
-  const prompt = `You are the private Level Up game assistant. Answer concisely and practically. Never claim medical certainty. Current instant: ${now}; timezone: ${s.settings.timezone}. Player totals: ${JSON.stringify(totals(s))}. Today's quests: ${JSON.stringify(quests)}. Recent self-reported logs: ${JSON.stringify(recent)}. User: ${message}`;
+  const prompt = `You are the private Level Up game assistant. Answer concisely and practically. Never claim medical certainty. Format every answer as clean GitHub-flavored Markdown. Start with a short direct answer, then use descriptive headings, bullets, a checklist, or a compact Markdown table when they improve clarity. For schedule questions, show times in 12-hour Nepal time. Never invent missing measurements. Current instant: ${now}; timezone: ${s.settings.timezone}. Player totals: ${JSON.stringify(totals(s))}. Today's quests: ${JSON.stringify(quests)}. Recent self-reported logs: ${JSON.stringify(recent)}. User: ${message}`;
   const data = await generateGemini(prompt, { temperature: 0.3, maxOutputTokens: 700 });
   return data.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "I could not generate a response.";
 }
