@@ -225,7 +225,7 @@ function App() {
     );
   const today = localDate(new Date(now).toISOString(), s.settings.timezone),
     current = s.instances.filter(
-      (q) => localDate(q.opensAt, s.settings.timezone) === today,
+      (q) => localDate(q.opensAt, s.settings.timezone) === today && q.status !== "cancelled",
     ),
     done = current.filter((q) => q.status === "completed").length,
     eligible = current.filter(
@@ -721,11 +721,13 @@ function App() {
                 <div>
                   <small>Training rotation · day {cycle + 1} of 5</small>
                   <b>
-                    {s.settings.restDates.includes(today)
+                    {current.some(q => q.title === "Active-rest basketball")
+                      ? "Active rest · basketball"
+                      : s.settings.restDates.includes(today)
                       ? "Rest day"
                       : cycles[cycle]}
                   </b>
-                  <small>08:00–09:00 · flexible, never forced</small>
+                  <small>{current.some(q => q.title === "Active-rest basketball") ? "Wake 06:30 · basketball 07:00–08:30 · no morning training" : "08:00–09:00 · flexible, never forced"}</small>
                 </div>
               </div>
               <div className="card">
@@ -768,7 +770,7 @@ function App() {
                 )}
               </section>
               <aside>
-                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div className="quest-actions"><button onClick={() => setSelectedQuest(surprise)}>View details</button><button className="quest-check" aria-label={surprise.status === "completed" ? `Completed ${surprise.title}` : `Complete ${surprise.title}`} disabled={busy || surprise.status !== "available" || now > Date.parse(surprise.dueAt) + surprise.grace * 60000 || (surprise.proofRequired && !surprise.proofUrl)} onClick={() => requestCompletion(surprise)}>{surprise.status === "completed" ? <Check size={18} /> : <span />}</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
+                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div className="quest-actions"><button onClick={() => setSelectedQuest(surprise)}>View details</button><button className="surprise-complete" aria-label={surprise.status === "completed" ? `Completed ${surprise.title}` : `Complete ${surprise.title}`} disabled={busy || surprise.status !== "available" || now > Date.parse(surprise.dueAt) + surprise.grace * 60000 || (surprise.proofRequired && !surprise.proofUrl)} onClick={() => requestCompletion(surprise)}><span className="quest-check">{surprise.status === "completed" ? <Check size={18} /> : <span />}</span>{surprise.status === "completed" ? "Completed" : "Tick to complete"}</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
                 <div className="card">
                   <span className="tag">18:30 · CLOSE THE WORKDAY</span>
                   <h2>

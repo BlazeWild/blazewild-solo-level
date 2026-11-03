@@ -774,6 +774,10 @@ footer > span:first-child {
 .phase-divider::after { content: ""; height: 1px; flex: 1; background: #2563eb; opacity: .75; }
 .surprise-card { display: block; border-left: 3px solid #a3e635; margin-bottom: 18px; }
 .surprise-card > div:last-child { display: flex; gap: 8px; flex-wrap: wrap; }
+.surprise-complete { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; }
+.surprise-complete .quest-check { margin: 0; }
+.surprise-complete:not(:disabled) .quest-check { border-color: var(--accent); }
+.surprise-complete:disabled { cursor: not-allowed; opacity: .58; }
 .penalty-note { padding: 9px 10px; border-left: 2px solid #f59e0b; background: rgba(245, 158, 11, .06); font-size: 12px; }
 .text-button { border: 0; padding: 0 0 0 10px; background: transparent; color: var(--accent, #8b5cf6); font-size: 11px; }
 .clickable { cursor: pointer; }

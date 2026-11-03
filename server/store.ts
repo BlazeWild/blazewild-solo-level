@@ -120,6 +120,45 @@ if (state && !state.audit.some(a => a.action === "quest-cleanup-v5")) {
   state.audit.push({ id: randomUUID(), at: instant, action: "quest-cleanup-v5", detail: "Removed duplicate 2:55 PM and 3:55 PM movement breaks, the separate lunchtime walk, and Wind down. Kept one lunch + 2,500-step walk and gave Close the workday a two-hour grace period." });
   save(state); await flush();
 }
+if (state && !state.audit.some(a => a.action === "active-rest-plan-v6")) {
+  const instant = new Date().toISOString();
+  const activeRestDay = "2026-11-04";
+  const shower = state.templates.find(t => t.title === "Shower & breakfast");
+  if (shower) {
+    Object.assign(shower, { start: "09:00", end: "10:00", description: "Fresh clothes, two eggs and a balanced breakfast. Keep this daily block from 9:00 to 10:00 AM." });
+    for (const quest of state.instances.filter(q => q.templateId === shower.id && q.occurrence >= activeRestDay)) {
+      Object.assign(quest, { start: shower.start, end: shower.end, description: shower.description });
+      quest.opensAt = utc(quest.occurrence, shower.start, quest.timezone);
+      quest.dueAt = utc(quest.occurrence, shower.end, quest.timezone);
+    }
+  }
+  const wake = state.templates.find(t => t.title === "Wake & reset");
+  if (wake) for (const quest of state.instances.filter(q => q.templateId === wake.id && q.occurrence === activeRestDay && q.status !== "completed")) {
+    Object.assign(quest, { title: "Wake at 6:30 AM", start: "06:30", end: "06:45", description: "Wake at 6:30 AM for active-rest-day basketball. Water, brush teeth, and get ready." });
+    quest.opensAt = utc(activeRestDay, "06:30", quest.timezone);
+    quest.dueAt = utc(activeRestDay, "06:45", quest.timezone);
+  }
+  const training = state.templates.find(t => t.title === "Morning training / planned recovery");
+  if (training) for (const quest of state.instances.filter(q => q.templateId === training.id && q.occurrence === activeRestDay)) quest.status = "cancelled";
+  let basketball = state.templates.find(t => t.id === "active-rest-basketball-2026-11-04");
+  if (!basketball) {
+    basketball = { ...templateSchema.parse({ title: "Active-rest basketball", description: "Play basketball from 7:00 to 8:30 AM. This is active recovery, so there is no separate morning training quest today.", category: "Endurance", habit: "training", difficulty: "normal", recurrence: "once", timezone: state.settings.timezone, start: "07:00", end: "08:30", startDate: activeRestDay, grace: 15, target: 1, reminderLead: 15, required: true, penalty: 5, archived: false }), id: "active-rest-basketball-2026-11-04", createdAt: instant };
+    state.templates.push(basketball);
+  }
+  materialize(state, instant);
+  state.audit.push({ id: randomUUID(), at: instant, action: "active-rest-plan-v6", detail: "Set 4 Nov 2026 as active rest: wake at 6:30 AM, basketball 7:00–8:30 AM, no separate morning training, and moved daily shower & breakfast to 9:00–10:00 AM." });
+  save(state); await flush();
+}
+if (state && !state.audit.some(a => a.action === "active-rest-plan-v7")) {
+  const instant = new Date().toISOString();
+  const training = state.templates.find(t => t.title === "Morning training / planned recovery");
+  if (training) for (const quest of state.instances.filter(q => q.templateId === training.id && q.occurrence === "2026-11-04")) {
+    quest.status = "cancelled";
+    for (const entry of state.ledger.filter(l => l.questId === quest.id && !l.reversed)) entry.reversed = true;
+  }
+  state.audit.push({ id: randomUUID(), at: instant, action: "active-rest-plan-v7", detail: "Cancelled the 4 Nov morning-training instance so active-rest basketball is the only morning exercise quest." });
+  save(state); await flush();
+}
 if (!state) {
     const now = new Date().toISOString(),
       s = fresh(now);
