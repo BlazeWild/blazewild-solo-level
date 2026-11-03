@@ -24,5 +24,7 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
+      - key: GEMINI_FALLBACK_MODEL
+        value: gemini-3.6-flash
       - key: DESKTOP_NOTIFICATIONS
         value: "false"

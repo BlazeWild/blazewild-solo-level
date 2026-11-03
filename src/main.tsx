@@ -227,7 +227,7 @@ function App() {
     done = current.filter((q) => q.status === "completed").length,
     eligible = current.filter(
       (q) => !["excused", "cancelled"].includes(q.status),
-    );
+    ), surprise = current.find(q => q.proofRequired);
   const activeQuest = s.instances.filter((q) => q.status === "available").sort((a, b) => Date.parse(b.opensAt) - Date.parse(a.opensAt))[0],
     next = s.instances
     .filter((q) => q.status === "scheduled" && Date.parse(q.opensAt) > now)
@@ -263,13 +263,20 @@ function App() {
   };
   const dateTime = (v: string) =>
     DateTime.fromISO(v).setZone(s.settings.timezone).toFormat("h:mm a");
-  const questPeriod = (q: Instance) => { const hour = DateTime.fromISO(q.opensAt).setZone(s.settings.timezone).hour; if (/lunch|walk|break/i.test(q.title) && hour >= 14 && hour < 17) return "break-period"; if (hour < 10) return "morning-period"; if (hour < 18.5) return "day-period"; return "evening-period"; };
+  const questPhase = (q: Instance) => { const minutes = DateTime.fromISO(q.opensAt).setZone(s.settings.timezone).hour * 60 + DateTime.fromISO(q.opensAt).setZone(s.settings.timezone).minute; if (minutes < 600) return ["morning", "Morning"] as const; if (minutes < 900) return ["work", "Workday"] as const; if (minutes < 960) return ["break", "Lunch & walk"] as const; if (minutes < 1110) return ["afternoon", "Afternoon work"] as const; if (minutes < 1320) return ["evening", "Evening"] as const; return ["night", "Night"] as const; };
   const activeLog =
     log ?? s.logs.find((l) => l.date === today) ?? blankLog(today);
   const editLog = (key: string, value: any) =>
     setLog({ ...activeLog, [key]: value });
   const questAction = (q: Instance, action: string) =>
     safe(() => run(`/quests/${encodeURIComponent(q.id)}/${action}`));
+  const sendAgent = async () => {
+    const message = chatInput.trim(); if (!message || busy) return;
+    setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); setBusy(true);
+    try { const data = await api("/ai/chat", "POST", { message }); setChat(v => [...v, { role: "agent", text: data.reply }]); }
+    catch (e) { setChat(v => [...v, { role: "agent", text: `I couldn't answer: ${(e as Error).message}` }]); }
+    finally { setBusy(false); }
+  };
   const newTemplate = (): Partial<Template> => ({
     title: "",
     description: "",
@@ -291,7 +298,7 @@ function App() {
   });
   const questRow = (q: Instance) => (
     <div
-      className={`quest ${q.status} ${questPeriod(q)}`}
+      className={`quest ${q.status}`}
       key={q.id}
       draggable={["scheduled", "available"].includes(q.status)}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", q.id)}
@@ -351,6 +358,14 @@ function App() {
       </span>
     </div>
   );
+  const questList = (quests: Instance[]) => {
+    let previous = "";
+    return quests.slice().sort((a, b) => Date.parse(a.opensAt) - Date.parse(b.opensAt)).flatMap(q => {
+      const [key, label] = questPhase(q), blocks: React.ReactNode[] = [];
+      if (key !== previous) { blocks.push(<div className="phase-divider" key={`phase-${key}`}><span>{label}</span></div>); previous = key; }
+      blocks.push(questRow(q)); return blocks;
+    });
+  };
   const logForm = (
     <>
       <div className="row">
@@ -709,6 +724,7 @@ function App() {
                 </div>
               </div>
             </div>
+            {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p></div><div><button onClick={() => setSelectedQuest(surprise)}>View surprise details</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
             <div className="grid">
               <section className="card">
                 <div className="section-heading">
@@ -720,10 +736,9 @@ function App() {
                     <Plus size={16} />
                     New quest
                   </button>
-                  <button onClick={() => safe(() => run("/adventure", "POST", {}, "Photo adventure created"))}>Random photo quest</button>
                 </div>
-                {current.length ? (
-                  current.map(questRow)
+                {current.some(q => !q.proofRequired) ? (
+                  questList(current.filter(q => !q.proofRequired))
                 ) : (
                   <p className="empty">
                     No quests today. Add a quest or enjoy a planned rest day.
@@ -1570,7 +1585,7 @@ function App() {
       )}
       {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline." : "Complete within one hour after it becomes available."}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : "· optional, no penalty"}</p></Dialog>}
       <button className="agent-fab" onClick={() => setAgentOpen(v => !v)}>{agentOpen ? "Close" : "Ask Agent"}</button>
-      {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b><p>{m.text}</p></div>)}</div><form onSubmit={(e) => { e.preventDefault(); const message = chatInput.trim(); if (!message) return; setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); safe(async () => { const data = await run("/ai/chat", "POST", { message }, "Agent replied"); setChat(v => [...v, { role: "agent", text: data.reply }]); }); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="What remains today?" /></label><button className="primary" disabled={busy}>Send</button></form></aside>}
+      {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b><p>{m.text}</p></div>)}</div><form onSubmit={(e) => { e.preventDefault(); void sendAgent(); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="What remains today?" /></label><small className="muted">Enter sends · Shift+Enter adds a new line</small><button className="primary" disabled={busy}>{busy ? "Thinking…" : "Send"}</button></form></aside>}
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />

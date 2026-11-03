@@ -767,10 +767,11 @@ footer > span:first-child {
 .chat-log { display: grid; gap: 12px; margin: 20px 0; max-height: 50vh; overflow: auto; }
 .chat { padding: 14px; border-radius: 12px; background: var(--surface-2, rgba(255,255,255,.04)); }
 .chat.user { border-left: 3px solid var(--accent, #8b5cf6); }
-.quest.morning-period { background: linear-gradient(90deg, rgba(250, 204, 21, .07), rgba(34, 197, 94, .025)); }
-.quest.day-period { background: rgba(250, 204, 21, .09); }
-.quest.break-period { background: linear-gradient(90deg, rgba(59, 130, 246, .12), rgba(148, 163, 184, .06)); }
-.quest.evening-period { background: linear-gradient(90deg, rgba(249, 115, 22, .11), rgba(100, 116, 139, .07)); }
+.quest { background: transparent !important; }
+.phase-divider { display: flex; align-items: center; gap: 12px; color: #60a5fa; margin: 18px 0 4px; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.phase-divider::after { content: ""; height: 1px; flex: 1; background: #2563eb; opacity: .75; }
+.surprise-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-left: 3px solid #a3e635; margin-bottom: 18px; }
+.surprise-card > div:last-child { display: flex; gap: 8px; flex-wrap: wrap; }
 .text-button { border: 0; padding: 0 0 0 10px; background: transparent; color: var(--accent, #8b5cf6); font-size: 11px; }
 .clickable { cursor: pointer; }
 .next-line { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }

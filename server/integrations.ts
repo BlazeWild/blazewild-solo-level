@@ -286,19 +286,26 @@ export async function chat(message: string) {
   const quests = s.instances.filter(q => q.occurrence === today).map(q => ({ title: q.title, status: q.status, starts: q.opensAt, due: q.dueAt }));
   const recent = s.logs.slice(-7).map(l => ({ date: l.date, sleep: l.sleep, weight: l.weight, steps: l.steps, fatigue: l.fatigue }));
   const prompt = `You are the private Level Up game assistant. Answer concisely and practically. Never claim medical certainty. Current instant: ${now}; timezone: ${s.settings.timezone}. Player totals: ${JSON.stringify(totals(s))}. Today's quests: ${JSON.stringify(quests)}. Recent self-reported logs: ${JSON.stringify(recent)}. User: ${message}`;
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 700 } }), signal: AbortSignal.timeout(30000) });
-  if (!response.ok) throw Error(`Gemini returned ${response.status}`);
-  const data = await response.json() as any;
+  const data = await generateGemini(prompt, { temperature: 0.3, maxOutputTokens: 700 });
   return data.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "I could not generate a response.";
+}
+async function generateGemini(prompt: string, generationConfig: Record<string, number>) {
+  const models = [...new Set([process.env.GEMINI_MODEL || "gemini-3.8-flash", process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash"])];
+  let lastStatus = 0;
+  for (const model of models) for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }), signal: AbortSignal.timeout(45000) });
+    if (response.ok) return await response.json() as any;
+    lastStatus = response.status;
+    if (![429, 500, 502, 503, 504].includes(response.status)) break;
+    await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+  }
+  throw Error(`Gemini is temporarily unavailable (${lastStatus}). Please retry in a moment.`);
 }
 export async function randomAdventure() {
   const fallback = ["Bagh Bhairab Temple", "a nearby temple early in the morning", "the Jholunge Pul", "Tribhuvan University grounds"];
   if (!process.env.GEMINI_API_KEY) return fallback[Math.floor(Math.random() * fallback.length)];
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY }, body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest exactly one safe, public, low-cost photo-adventure destination in or near Kirtipur, Nepal. Return only the place name, maximum 80 characters. Do not suggest restricted or dangerous places." }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 40 } }), signal: AbortSignal.timeout(15000) });
-  if (!response.ok) return fallback[Math.floor(Math.random() * fallback.length)];
-  const data = await response.json() as any, place = String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().replace(/[\r\n"*]/g, "").slice(0, 80);
+  let data: any; try { data = await generateGemini("Suggest exactly one safe, public, low-cost photo-adventure destination in or near Kirtipur, Nepal. Return only the place name, maximum 80 characters. Do not suggest restricted or dangerous places.", { temperature: 0.8, maxOutputTokens: 40 }); } catch { return fallback[Math.floor(Math.random() * fallback.length)]; }
+  const place = String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().replace(/[\r\n"*]/g, "").slice(0, 80);
   return place || fallback[Math.floor(Math.random() * fallback.length)];
 }
 export function ics(s: State) {
