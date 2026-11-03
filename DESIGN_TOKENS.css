@@ -1,0 +1,25 @@
+/* Extracted current UI palette; framework-independent reference. */
+:root {
+  color-scheme: dark;
+  --background: #0c1119;
+  --surface: #151d29;
+  --surface-inset: #0f1824;
+  --border: #2b3545;
+  --text: #eef3fa;
+  --muted: #a5b1c4;
+  --accent: #b7ed83;
+  --accent-ink: #172111;
+  --button: #202b3c;
+  --input: #0e1621;
+  --input-border: #40506a;
+  --hero-start: #25382e;
+  --hero-end: #15242b;
+  --radius-card: 18px;
+  --radius-control: 9px;
+  --font-ui: system-ui, sans-serif;
+  /* Proposed extension colours, not yet used in prototype */
+  --warning: #f3c969;
+  --danger: #ff8e96;
+  --chart-secondary: #88b9ff;
+  --chart-tertiary: #c7a5ff;
+}

@@ -1,0 +1,9 @@
+# Build my complete Level Up app
+
+Use the included ui/index.html and ui/app.js as the working visual reference. Read REQUIREMENTS.md and DESIGN_TOKENS.css. Implement the complete application in this folder; do not merely give advice or a mockup. Preserve the dark charcoal / lime visual identity. This is a personal, Solo Leveling-inspired life dashboard for Asok, not an official anime product. Use original graphics and configurable rank titles.
+
+Work autonomously through implementation and meaningful tests. Ask only about genuine blockers. Do not deploy or create external accounts without my request. Finish with exact Ubuntu commands, a feature checklist, tested behavior, and any remaining provider setup. No API credentials are included. The existing UI is a static prototype; do not pretend calendar, server scheduling, graphs, penalties or AI already exist.
+
+Suggested implementation: React + TypeScript + Vite client; Node/TypeScript API and scheduler; SQLite locally; charting library chosen against current official docs. Use a supported Node LTS and lock dependencies. Keep the domain engine independent of UI and storage. A serverless deployment needs a persistent remote database and scheduled worker adapter, not SQLite on ephemeral disk or an in-process timer. Verify current free-tier eligibility and quotas against official provider docs before recommending a host. Keep local mode fully functional without paid APIs.
+
+Build in phases but complete the core app: (1) durable data + quest engine + UI, (2) graphs and notifications, (3) optional calendar and AI adapters. For unavailable credentials, deliver working disabled states and precise setup docs rather than fake connections. Use deterministic fixture-based tests for quest timing, scoring, date rollover and repeated scheduler execution. Use browser tests for create/edit/complete/expire/correct quest, persistence, settings, charts and backup restore.
