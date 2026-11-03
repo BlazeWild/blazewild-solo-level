@@ -36,7 +36,7 @@ AUTH_USERNAME=ashok
 AUTH_PASSWORD=<your unique password, at least 20 characters>
 SESSION_SECRET=<random value, at least 32 characters>
 GEMINI_API_KEY=<your server-side Gemini key>
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.8-flash
 DESKTOP_NOTIFICATIONS=false
 ```
 
