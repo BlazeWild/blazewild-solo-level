@@ -75,17 +75,17 @@ if (!state) {
       [
         "Balanced lunch",
         "Recovery",
-        "14:00",
-        "14:40",
+        "15:00",
+        "15:10",
         "Include protein, vegetables and a comfortable rice portion.",
         false,
       ],
       [
         "Lunchtime walk",
         "Endurance",
-        "14:40",
-        "15:00",
-        "An easy 15–20 minute walk.",
+        "15:10",
+        "16:00",
+        "A relaxed walk during the rest of your afternoon break.",
         true,
       ],
       [

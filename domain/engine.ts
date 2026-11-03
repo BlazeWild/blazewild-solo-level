@@ -119,7 +119,9 @@ function penalty(s: State, q: Instance, now: string) {
   });
 }
 export const completionDeadline = (q: Instance) =>
-  Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 60 * 60000);
+  q.proofRequired
+    ? Date.parse(q.dueAt) + q.grace * 60000
+    : Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 60 * 60000);
 export function reconcile(
   s: State,
   now: string,

@@ -74,11 +74,17 @@ app.post("/api/templates", (req, res) => {
   });
   res.status(201).json(t);
 });
-app.post("/api/adventure", async (_req, res) => {
-  const day = localDate(now(), read().settings.timezone), place = await integrations.randomAdventure();
-  const value = templateSchema.parse({ title: `Photo adventure: ${place}`, description: `Visit ${place} safely and upload a photo as proof.`, category: "Consistency", habit: "walking", difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "06:00", end: "19:00", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
+async function createDailyAdventure() {
+  const day = localDate(now(), read().settings.timezone), existing = read().instances.find(q => q.occurrence === day && q.proofRequired && q.title.startsWith("Surprise quest:"));
+  if (existing) return existing;
+  const place = await integrations.randomAdventure();
+  const value = templateSchema.parse({ title: `Surprise quest: ${place}`, description: `Visit ${place} safely, preferably in daylight, and upload a photo as proof. This optional quest stays open until 10:30 PM Nepal time.`, category: "Consistency", habit: "walking", difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "06:00", end: "22:30", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
   const t = { ...value, id: randomUUID(), createdAt: now() };
   transaction(s => { s.templates.push(t); materialize(s, now()); audit(s, now(), "adventure", t.title); });
+  return t;
+}
+app.post("/api/adventure", async (_req, res) => {
+  const t = await createDailyAdventure();
   res.status(201).json(t);
 });
 app.put("/api/templates/:id", (req, res) => {
@@ -362,7 +368,7 @@ let schedulerBusy = false;
 async function schedulerTick() {
   if (schedulerBusy) return;
   schedulerBusy = true;
-  try { const instant = now(); transaction(s => { reconcile(s, instant); queue(s, instant); }); await deliver(); await flush(); }
+  try { await createDailyAdventure(); const instant = now(); transaction(s => { reconcile(s, instant); queue(s, instant); }); await deliver(); await flush(); }
   catch (error) { console.error("Scheduler:", (error as Error).message); }
   finally { schedulerBusy = false; }
 }

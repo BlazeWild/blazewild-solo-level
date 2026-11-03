@@ -216,7 +216,7 @@ export function fresh(now: string): State {
       wake: "07:45",
       workStart: "10:00",
       workEnd: "18:30",
-      lunch: "14:00",
+      lunch: "15:00",
       weekdays: [1, 2, 3, 4, 5],
       penaltyMode: "standard",
       grace: 15,

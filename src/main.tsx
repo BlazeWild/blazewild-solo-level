@@ -63,7 +63,6 @@ const tabs = [
   ["Progress", ChartNoAxesCombined],
   ["Nutrition", Heart],
   ["Weekly review", CheckCheck],
-  ["Agent", Flame],
   ["Settings", Settings2],
 ] as const;
 const cycles = ["Push", "Pull", "Legs", "Arms", "Basketball"];
@@ -112,7 +111,9 @@ function App() {
     [proposals, setProposals] = useState<any[]>([]),
     [busy, setBusy] = useState(false),
     [chat, setChat] = useState<{ role: string; text: string }[]>([]),
-    [chatInput, setChatInput] = useState("");
+    [chatInput, setChatInput] = useState(""),
+    [agentOpen, setAgentOpen] = useState(false),
+    [selectedQuest, setSelectedQuest] = useState<Instance | null>(null);
   const refresh = async () => {
     try {
       const value = await api("/state");
@@ -227,9 +228,11 @@ function App() {
     eligible = current.filter(
       (q) => !["excused", "cancelled"].includes(q.status),
     );
-  const next = s.instances
-    .filter((q) => ["scheduled", "available"].includes(q.status))
+  const activeQuest = s.instances.filter((q) => q.status === "available").sort((a, b) => Date.parse(b.opensAt) - Date.parse(a.opensAt))[0],
+    next = s.instances
+    .filter((q) => q.status === "scheduled" && Date.parse(q.opensAt) > now)
     .sort((a, b) => Date.parse(a.opensAt) - Date.parse(b.opensAt))[0];
+  const featured = activeQuest ?? next;
   const cycle =
     (((Math.floor(
       DateTime.fromISO(today).diff(
@@ -259,7 +262,8 @@ function App() {
     return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m ${sec % 60}s`;
   };
   const dateTime = (v: string) =>
-    DateTime.fromISO(v).setZone(s.settings.timezone).toFormat("HH:mm");
+    DateTime.fromISO(v).setZone(s.settings.timezone).toFormat("h:mm a");
+  const questPeriod = (q: Instance) => { const hour = DateTime.fromISO(q.opensAt).setZone(s.settings.timezone).hour; if (/lunch|walk|break/i.test(q.title) && hour >= 14 && hour < 17) return "break-period"; if (hour < 10) return "morning-period"; if (hour < 18.5) return "day-period"; return "evening-period"; };
   const activeLog =
     log ?? s.logs.find((l) => l.date === today) ?? blankLog(today);
   const editLog = (key: string, value: any) =>
@@ -287,7 +291,7 @@ function App() {
   });
   const questRow = (q: Instance) => (
     <div
-      className={"quest " + q.status}
+      className={`quest ${q.status} ${questPeriod(q)}`}
       key={q.id}
       draggable={["scheduled", "available"].includes(q.status)}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", q.id)}
@@ -297,7 +301,7 @@ function App() {
         aria-label={
           q.status === "completed" ? "Undo " + q.title : "Complete " + q.title
         }
-        disabled={busy || !["available", "completed"].includes(q.status) || (q.status !== "completed" && now > Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 3600000)) || (q.proofRequired && !q.proofUrl)}
+        disabled={busy || !["available", "completed"].includes(q.status) || (q.status !== "completed" && now > (q.proofRequired ? Date.parse(q.dueAt) + q.grace * 60000 : Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 3600000))) || (q.proofRequired && !q.proofUrl)}
         onClick={() =>
           questAction(q, q.status === "completed" ? "undo" : "complete")
         }
@@ -306,6 +310,7 @@ function App() {
       </button>
       <div className="quest-copy">
         <b>{q.title}</b>
+        <button className="text-button" onClick={() => setSelectedQuest(q)}>View details</button>
         <small>
           {dateTime(q.opensAt)}–{dateTime(q.dueAt)} · {q.category} · target{" "}
           {q.target} · {q.status} {q.grace > 0 && `· ${q.grace}m grace`}
@@ -502,7 +507,7 @@ function App() {
           </div>
           <span className="date-label">
             {DateTime.fromISO(today).toFormat("cccc, dd LLL yyyy")}
-            <small>{DateTime.fromMillis(now).setZone("Asia/Kathmandu").toFormat("hh:mm:ss a")} · NEPAL TIME</small>
+            <small>{DateTime.fromMillis(now).setZone("Asia/Kathmandu").toFormat("h:mm:ss a")} · NEPAL TIME</small>
           </span>
         </div>
         <nav aria-label="Main navigation">
@@ -527,33 +532,32 @@ function App() {
                 <div className="row spread">
                   <span className="tag">
                     <span className="pulse" />{" "}
-                    {next?.status === "available"
+                    {activeQuest
                       ? "QUEST AVAILABLE"
                       : "NEXT SCHEDULED QUEST"}
                   </span>
-                  <span className="pill">{next?.category ?? "Recovery"}</span>
+                  <span className="pill">{featured?.category ?? "Recovery"}</span>
                 </div>
-                <h2>{next?.title ?? "Rest. Tomorrow is another day."}</h2>
+                <h2 className="clickable" onClick={() => featured && setSelectedQuest(featured)}>{featured?.title ?? "Rest. Tomorrow is another day."}</h2>
                 <p className="muted">
-                  {next?.description ??
+                  {featured?.description ??
                     "Your progress is saved. Take a breath."}
                 </p>
                 <div className="countdown">
-                  {next
+                  {featured
                     ? duration(
                         Date.parse(
-                          next.status === "available"
-                            ? next.dueAt
-                            : next.opensAt,
+                          activeQuest ? featured.dueAt : featured.opensAt,
                         ) - now,
                       )
                     : "All clear"}
                   <small>
-                    {next?.status === "available"
-                      ? "until due · grace follows"
-                      : "until your next quest"}
+                    {activeQuest
+                      ? "remaining for current quest"
+                      : `next quest available at ${featured ? dateTime(featured.opensAt) : "—"}`}
                   </small>
                 </div>
+                {activeQuest && next && <p className="next-line">Next: <b>{next.title}</b> in {duration(Date.parse(next.opensAt) - now)} · available at {dateTime(next.opensAt)}</p>}
                 <div className="row">
                   <button
                     className="primary"
@@ -1260,7 +1264,6 @@ function App() {
           </div>
         )}
         {tab === "Weekly review" && <Review s={s} today={today} />}
-        {tab === "Agent" && <section className="card feature"><span className="tag">PRIVATE GEMINI GAME ASSISTANT</span><h2>Ask about your day</h2><p className="muted">It can see today’s quest statuses, game totals, and your last seven self-reported logs. Your Gemini key stays on the server.</p><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b><p>{m.text}</p></div>)}</div><form onSubmit={(e) => { e.preventDefault(); const message = chatInput.trim(); if (!message) return; setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); safe(async () => { const data = await run("/ai/chat", "POST", { message }, "Agent replied"); setChat(v => [...v, { role: "agent", text: data.reply }]); }); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="What remains today? How was my sleep this week?" /></label><button className="primary" disabled={busy}>Ask agent</button></form></section>}
         {tab === "Settings" && (
           <>
             <div className="card">
@@ -1565,6 +1568,9 @@ function App() {
           }}
         />
       )}
+      {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline." : "Complete within one hour after it becomes available."}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : "· optional, no penalty"}</p></Dialog>}
+      <button className="agent-fab" onClick={() => setAgentOpen(v => !v)}>{agentOpen ? "Close" : "Ask Agent"}</button>
+      {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b><p>{m.text}</p></div>)}</div><form onSubmit={(e) => { e.preventDefault(); const message = chatInput.trim(); if (!message) return; setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); safe(async () => { const data = await run("/ai/chat", "POST", { message }, "Agent replied"); setChat(v => [...v, { role: "agent", text: data.reply }]); }); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="What remains today?" /></label><button className="primary" disabled={busy}>Send</button></form></aside>}
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />
