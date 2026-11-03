@@ -369,7 +369,16 @@ let schedulerBusy = false;
 async function schedulerTick() {
   if (schedulerBusy) return;
   schedulerBusy = true;
-  try { await createDailyAdventure(); const instant = now(); transaction(s => { reconcile(s, instant); queue(s, instant); }); await deliver(); await flush(); }
+  try {
+    // Core deadlines must continue to reconcile even if the optional adventure
+    // provider is slow or unavailable.
+    const instant = now();
+    transaction(s => { reconcile(s, instant); queue(s, instant); });
+    await flush();
+    await createDailyAdventure();
+    await deliver();
+    await flush();
+  }
   catch (error) { console.error("Scheduler:", (error as Error).message); }
   finally { schedulerBusy = false; }
 }

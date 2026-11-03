@@ -82,6 +82,39 @@ if (state && !state.audit.some(a => a.action === "lunch-walk-v4")) {
   state.audit.push({ id: randomUUID(), at: instant, action: "lunch-walk-v4", detail: "Combined lunch and walk into one 3:00–4:00 PM quest requiring 2,500 recorded walk steps; removed overlapping movement breaks." });
   save(state); await flush();
 }
+if (state && !state.audit.some(a => a.action === "quest-cleanup-v5")) {
+  const instant = new Date().toISOString(), today = localDate(instant, state.settings.timezone);
+  const lunch = state.templates.find(t => t.title === "Lunch & 2,500-step walk" || t.title === "Balanced lunch");
+  if (lunch) {
+    Object.assign(lunch, {
+      title: "Lunch & 2,500-step walk", start: "15:00", end: "16:00",
+      description: "Take 10 minutes for a balanced lunch, then walk for the remaining 50 minutes. Record at least 2,500 walk steps to complete this quest.",
+      habit: "walking", target: 2500, required: true, penalty: 5, archived: false,
+    });
+    for (const quest of state.instances.filter(q => q.templateId === lunch.id && q.occurrence >= today)) {
+      Object.assign(quest, { title: lunch.title, start: lunch.start, end: lunch.end, description: lunch.description, habit: lunch.habit, target: lunch.target, required: lunch.required, penalty: lunch.penalty });
+      quest.opensAt = utc(quest.occurrence, lunch.start, quest.timezone);
+      quest.dueAt = utc(quest.occurrence, lunch.end, quest.timezone);
+      if (quest.status !== "completed") {
+        quest.status = Date.parse(instant) >= Date.parse(quest.opensAt) ? "available" : "scheduled";
+        for (const entry of state.ledger.filter(l => l.questId === quest.id && l.kind === "expiry" && !l.reversed)) entry.reversed = true;
+      }
+    }
+  }
+  const closeWorkday = state.templates.find(t => t.title === "Close the workday");
+  if (closeWorkday) {
+    closeWorkday.grace = 120;
+    for (const quest of state.instances.filter(q => q.templateId === closeWorkday.id && q.occurrence >= today)) quest.grace = 120;
+  }
+  const remove = new Set(state.templates.filter(t =>
+    t.title === "Lunchtime walk" || t.title === "Wind down" ||
+    (t.title === "Five-minute movement break" && (t.start === "14:55" || t.start === "15:55")),
+  ).map(t => t.id));
+  for (const template of state.templates.filter(t => remove.has(t.id))) template.archived = true;
+  state.instances = state.instances.filter(q => !(remove.has(q.templateId) && q.occurrence >= today));
+  state.audit.push({ id: randomUUID(), at: instant, action: "quest-cleanup-v5", detail: "Removed duplicate 2:55 PM and 3:55 PM movement breaks, the separate lunchtime walk, and Wind down. Kept one lunch + 2,500-step walk and gave Close the workday a two-hour grace period." });
+  save(state); await flush();
+}
 if (!state) {
     const now = new Date().toISOString(),
       s = fresh(now);
@@ -142,14 +175,6 @@ if (!state) {
         "Brush teeth, prepare clothes, five quiet minutes.",
         true,
       ],
-      [
-        "Wind down",
-        "Recovery",
-        "23:00",
-        "23:45",
-        "Make space for sleep.",
-        false,
-      ],
     ];
     for (const h of ["10:55", "11:55", "16:55", "17:55"])
       seed.push([
@@ -177,7 +202,7 @@ if (!state) {
                 : "daily",
             timezone: s.settings.timezone,
             startDate: s.settings.rotationAnchor,
-            grace: 15,
+            grace: title === "Close the workday" ? 120 : 15,
             penalty: required ? 5 : 0,
             habit: title === "Lunch & 2,500-step walk" ? "walking" : "general",
             target: title === "Lunch & 2,500-step walk" ? 2500 : 1,

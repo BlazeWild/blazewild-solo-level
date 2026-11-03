@@ -126,9 +126,7 @@ function surprisePenalty(s: State, q: Instance, now: string) {
   if (amount > 0) entry(s, now, `surprise-expiry:${q.id}:${q.generation}`, { questId: q.id, date: day, xp: -Math.min(amount, totals(s).xp) });
 }
 export const completionDeadline = (q: Instance) =>
-  q.proofRequired
-    ? Date.parse(q.dueAt) + q.grace * 60000
-    : Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 60 * 60000);
+  Date.parse(q.dueAt) + q.grace * 60000;
 export function reconcile(
   s: State,
   now: string,
@@ -277,16 +275,7 @@ export function act(
       points: reward[q.difficulty] / 10,
     });
   } else if (action === "undo") {
-    if (q.status !== "completed") return;
-    for (const l of s.ledger.filter(
-      (l) => l.questId === id && l.kind === "completion" && !l.reversed,
-    ))
-      l.reversed = true;
-    q.generation++;
-    q.completedAt = undefined;
-    q.completedValue = undefined;
-    q.status = "scheduled";
-    reconcile(s, now);
+    throw Error("Completed quests are permanent and cannot be unchecked");
   } else if (action === "excuse" || action === "cancel") {
     for (const l of s.ledger.filter((l) => l.questId === id && !l.reversed))
       l.reversed = true;

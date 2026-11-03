@@ -102,7 +102,7 @@ function App() {
     [toast, setToast] = useState(""),
     [now, setNow] = useState(Date.now()),
     [editor, setEditor] = useState<Partial<Template> | null>(null),
-    [modal, setModal] = useState<{ q: Instance; action: string } | null>(null),
+    [modal, setModal] = useState<{ q: Instance; action: "complete" | "correct" | "reschedule"; value?: number } | null>(null),
     [stats, setStats] = useState<any[]>([]),
     [days, setDays] = useState(30),
     [log, setLog] = useState<DailyLog | null>(null),
@@ -272,10 +272,15 @@ function App() {
   const editLog = (key: string, value: any) =>
     setLog({ ...activeLog, [key]: value });
   const questAction = (q: Instance, action: string) =>
-    safe(() => run(`/quests/${encodeURIComponent(q.id)}/${action}`, "POST",
-      action === "complete" && q.habit === "walking" && q.target > 1
-        ? { value: Number(questValues[q.id]) }
-        : {}));
+    safe(() => run(`/quests/${encodeURIComponent(q.id)}/${action}`, "POST", {}));
+  const requestCompletion = (q: Instance) => {
+    const value = Number(questValues[q.id] ?? "");
+    if (q.habit === "walking" && q.target > 1 && (!Number.isInteger(value) || value < q.target)) {
+      setError(`Enter at least ${q.target.toLocaleString()} steps before completing this walk.`);
+      return;
+    }
+    setModal({ q, action: "complete", value });
+  };
   const sendAgent = async () => {
     const message = chatInput.trim(); if (!message || busy) return;
     setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); setBusy(true);
@@ -311,13 +316,9 @@ function App() {
     >
       <button
         className="quest-check"
-        aria-label={
-          q.status === "completed" ? "Undo " + q.title : "Complete " + q.title
-        }
-        disabled={busy || !["available", "completed"].includes(q.status) || (q.status !== "completed" && now > (q.proofRequired ? Date.parse(q.dueAt) + q.grace * 60000 : Math.min(Date.parse(q.dueAt) + q.grace * 60000, Date.parse(q.opensAt) + 3600000))) || (q.proofRequired && !q.proofUrl)}
-        onClick={() =>
-          questAction(q, q.status === "completed" ? "undo" : "complete")
-        }
+        aria-label={q.status === "completed" ? "Completed " + q.title : "Complete " + q.title}
+        disabled={busy || q.status !== "available" || now > Date.parse(q.dueAt) + q.grace * 60000 || (q.proofRequired && !q.proofUrl) || (q.habit === "walking" && q.target > 1 && (!Number.isInteger(Number(questValues[q.id])) || Number(questValues[q.id]) < q.target))}
+        onClick={() => requestCompletion(q)}
       >
         {q.status === "completed" ? <Check size={18} /> : <span />}
       </button>
@@ -767,7 +768,7 @@ function App() {
                 )}
               </section>
               <aside>
-                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div><button onClick={() => setSelectedQuest(surprise)}>View details</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
+                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div className="quest-actions"><button onClick={() => setSelectedQuest(surprise)}>View details</button><button className="primary" disabled={busy || surprise.status !== "available" || now > Date.parse(surprise.dueAt) + surprise.grace * 60000 || (surprise.proofRequired && !surprise.proofUrl)} onClick={() => requestCompletion(surprise)}>{surprise.status === "completed" ? "Completed" : "Complete quest"}</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
                 <div className="card">
                   <span className="tag">18:30 · CLOSE THE WORKDAY</span>
                   <h2>
@@ -1605,7 +1606,7 @@ function App() {
           }}
         />
       )}
-      {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline. Missing it deducts 25% of today’s positive XP gain; 0 XP gained means 0 XP lost." : "Complete within one hour after it becomes available."}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : selectedQuest.proofRequired ? "· surprise penalty applies if missed" : "· optional, no penalty"}</p></Dialog>}
+      {selectedQuest && <Dialog title={selectedQuest.title} onClose={() => setSelectedQuest(null)}><p>{selectedQuest.description}</p><p><b>{dateTime(selectedQuest.opensAt)}–{dateTime(selectedQuest.dueAt)}</b> · {selectedQuest.category} · {selectedQuest.status}</p><p>{selectedQuest.proofRequired ? "Photo proof is required. This surprise quest stays open until its stated deadline. Missing it deducts 25% of today’s positive XP gain; 0 XP gained means 0 XP lost." : `Complete by the due time plus ${selectedQuest.grace} minutes of grace.`}</p><p>Reward: +{selectedQuest.rewardXp ?? reward[selectedQuest.difficulty]} XP {selectedQuest.required ? `· missed penalty up to ${selectedQuest.penalty} HP/XP` : selectedQuest.proofRequired ? "· surprise penalty applies if missed" : "· optional, no penalty"}</p></Dialog>}
       <button className="agent-fab" onClick={() => setAgentOpen(v => !v)}>{agentOpen ? "Close" : "Ask Agent"}</button>
       {agentOpen && <aside className="agent-window card"><div className="row spread"><div><span className="tag">PRIVATE GEMINI AGENT</span><h2>Ask about your day</h2></div><button onClick={() => setAgentOpen(false)}>×</button></div><div className="chat-log">{chat.map((m, i) => <div className={`chat ${m.role}`} key={i}><b>{m.role === "user" ? "You" : "Agent"}</b>{m.role === "agent" ? <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown></div> : <p>{m.text}</p>}</div>)}</div><form onSubmit={(e) => { e.preventDefault(); void sendAgent(); }}><label>Message<textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="What remains today?" /></label><small className="muted">Enter sends · Shift+Enter adds a new line</small><button className="primary" disabled={busy}>{busy ? "Thinking…" : "Send"}</button></form></aside>}
       {toast && (
@@ -1632,7 +1633,7 @@ function Dialog({
     return () => ref.current?.close();
   }, []);
   return (
-    <dialog ref={ref} onCancel={onClose}>
+    <dialog ref={ref} aria-label={title} onCancel={onClose}>
       <div className="section-heading">
         <h2>{title}</h2>
         <button aria-label="Close dialog" onClick={onClose}>
@@ -1847,7 +1848,7 @@ function ActionModal({
   onClose,
   onSave,
 }: {
-  value: { q: Instance; action: string };
+  value: { q: Instance; action: "complete" | "correct" | "reschedule"; value?: number };
   onClose: () => void;
   onSave: (v: any) => Promise<void>;
 }) {
@@ -1864,7 +1865,9 @@ function ActionModal({
   return (
     <Dialog
       title={
-        action === "correct"
+        action === "complete"
+          ? "Confirm completion"
+          : action === "correct"
           ? "I did this on time; forgot to log it"
           : "Reschedule quest"
       }
@@ -1874,7 +1877,9 @@ function ActionModal({
         onSubmit={(e) => {
           e.preventDefault();
           void onSave(
-            action === "correct"
+            action === "complete"
+              ? (q.habit === "walking" && q.target > 1 ? { value: value.value } : {})
+              : action === "correct"
               ? { completedAt: utc(at), note }
               : { opensAt: utc(start), dueAt: utc(end), note },
           ).catch((e) => setError(e.message));
@@ -1888,7 +1893,12 @@ function ActionModal({
             {error}
           </p>
         )}
-        {action === "correct" ? (
+        {action === "complete" ? (
+          <>
+            <p>Mark <b>{q.title}</b> complete? This is permanent and cannot be unchecked.</p>
+            {q.habit === "walking" && q.target > 1 && <p>Recorded steps: <b>{value.value?.toLocaleString()}</b> / {q.target.toLocaleString()}.</p>}
+          </>
+        ) : action === "correct" ? (
           <>
             <p>
               This records your claimed actual time and an audit note, and
@@ -1926,16 +1936,16 @@ function ActionModal({
             </label>
           </>
         )}
-        <label>
+        {action !== "complete" && <label>
           Audit note
           <textarea
             required={action === "correct"}
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-        </label>
+        </label>}
         <button className="primary" type="submit">
-          {action === "correct" ? "Save correction" : "Save new window"}
+          {action === "complete" ? "Confirm completion" : action === "correct" ? "Save correction" : "Save new window"}
         </button>
       </form>
     </Dialog>

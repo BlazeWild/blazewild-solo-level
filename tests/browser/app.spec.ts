@@ -39,7 +39,7 @@ test.beforeEach(async ({ request }) => {
     ).ok(),
   ).toBeTruthy();
 });
-test("complete, undo, repeated requests, reload and another tab preserve scores", async ({
+test("completion requires confirmation and stays permanent across tabs", async ({
   page,
   context,
   request,
@@ -48,18 +48,20 @@ test("complete, undo, repeated requests, reload and another tab preserve scores"
   await page
     .getByRole("button", { name: "Complete Browser test quest", exact: true })
     .click();
+  await expect(page.getByRole("dialog", { name: "Confirm completion" })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm completion", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Undo Browser test quest", exact: true }),
-  ).toBeEnabled();
+    page.getByRole("button", { name: "Completed Browser test quest", exact: true }),
+  ).toBeDisabled();
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "Undo Browser test quest", exact: true }),
-  ).toBeEnabled();
+    page.getByRole("button", { name: "Completed Browser test quest", exact: true }),
+  ).toBeDisabled();
   const b = await context.newPage();
   await b.goto("/");
   await expect(
-    b.getByRole("button", { name: "Undo Browser test quest", exact: true }),
-  ).toBeEnabled();
+    b.getByRole("button", { name: "Completed Browser test quest", exact: true }),
+  ).toBeDisabled();
   const state = await (await request.get("/api/state")).json(),
     id = state.instances[0].id;
   await Promise.all(
@@ -73,12 +75,6 @@ test("complete, undo, repeated requests, reload and another tab preserve scores"
   expect((await (await request.get("/api/state")).json()).totals.lifetime).toBe(
     20,
   );
-  await page
-    .getByRole("button", { name: "Undo Browser test quest", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Complete Browser test quest", exact: true })
-    .click();
   expect((await (await request.get("/api/state")).json()).totals.lifetime).toBe(
     20,
   );
@@ -149,8 +145,8 @@ test("expired quest correction, settings, measurement charts and restore preview
     .fill("Finished on time before opening the app");
   await page.getByRole("button", { name: "Save correction" }).click();
   await expect(
-    page.getByRole("button", { name: "Undo Browser test quest", exact: true }),
-  ).toBeEnabled();
+    page.getByRole("button", { name: "Completed Browser test quest", exact: true }),
+  ).toBeDisabled();
   await page.getByLabel("Weight (kg)", { exact: true }).fill("78.5");
   await page.getByLabel("Steps (manual)", { exact: true }).fill("6000");
   await page.getByRole("button", { name: "Save log", exact: true }).click();
@@ -230,7 +226,8 @@ test("mobile navigation, timer persistence, offline failure, no browser exceptio
   await page
     .getByRole("button", { name: "Complete Browser test quest", exact: true })
     .click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm completion", exact: true }).click();
+  await expect(page.locator(".banner.error")).toBeVisible();
   await page.context().setOffline(false);
   await page.reload();
   await expect(

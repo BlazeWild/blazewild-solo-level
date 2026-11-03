@@ -119,16 +119,23 @@ test("expiry after boundary, correction reverses exactly once with audit", () =>
   assert.equal(s.ledger.filter((l) => l.kind === "correction").length, 1);
   assert.ok(s.audit.some((a) => a.action === "correct"));
 });
-test("undo and redo cannot farm lifetime XP or category points", () => {
+test("completed quests are permanent and cannot be unchecked", () => {
   const s = fixture();
   act(s, id, "complete", "2026-12-31T04:30:00Z");
-  act(s, id, "undo", "2026-12-31T04:31:00Z");
-  assert.equal(totals(s).xp, 0);
-  assert.equal(totals(s).lifetime, 20);
-  act(s, id, "complete", "2026-12-31T04:32:00Z");
+  assert.throws(
+    () => act(s, id, "undo", "2026-12-31T04:31:00Z"),
+    /permanent/,
+  );
+  assert.equal(s.instances[0].status, "completed");
   assert.equal(totals(s).xp, 20);
   assert.equal(totals(s).lifetime, 20);
   assert.equal(totals(s).scores.Focus, 2);
+});
+test("grace is measured from the due time, not capped one hour after opening", () => {
+  const s = fixture();
+  s.instances[0].grace = 120;
+  act(s, id, "complete", "2026-12-31T06:45:00.000Z");
+  assert.equal(s.instances[0].status, "completed");
 });
 test("daily caps, optional no penalty and recovery once", () => {
   const s = fixture();
