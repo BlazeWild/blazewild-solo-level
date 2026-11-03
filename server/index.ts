@@ -124,6 +124,7 @@ app.post("/api/quests/:id/:action", (req, res) => {
       opensAt: z.string().optional(),
       dueAt: z.string().optional(),
       minutes: z.number().int().min(1).max(120).optional(),
+      value: z.number().int().min(0).max(100000).optional(),
     })
     .parse(req.body);
   transaction((s) => act(s, req.params.id, req.params.action, now(), input));

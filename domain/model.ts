@@ -102,6 +102,7 @@ export type Instance = Template & {
     | "cancelled";
   completedAt?: string;
   proofUrl?: string;
+  completedValue?: number;
   generation: number;
   snoozeUntil?: string;
 };

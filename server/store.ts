@@ -55,6 +55,33 @@ if (state && !state.audit.some(a => a.action === "break-schedule-v3")) {
   state.audit.push({ id: randomUUID(), at: instant, action: "break-schedule-v3", detail: "Break migrated to 3:00–4:00 PM Nepal time: lunch 3:00–3:10 and walk 3:10–4:00." });
   save(state); await flush();
 }
+if (state && !state.audit.some(a => a.action === "lunch-walk-v4")) {
+  const instant = new Date().toISOString(), today = localDate(instant, state.settings.timezone);
+  const lunch = state.templates.find(t => t.title === "Balanced lunch");
+  const walk = state.templates.find(t => t.title === "Lunchtime walk");
+  if (lunch) {
+    Object.assign(lunch, {
+      title: "Lunch & 2,500-step walk", start: "15:00", end: "16:00",
+      description: "Take 10 minutes for a balanced lunch, then walk for the remaining 50 minutes. Record at least 2,500 steps from this walk; fewer than 2,500 means the quest fails.",
+      habit: "walking", target: 2500, required: true, penalty: 5,
+    });
+    for (const quest of state.instances.filter(q => q.templateId === lunch.id && q.occurrence >= today && q.status !== "completed")) {
+      Object.assign(quest, { title: lunch.title, start: lunch.start, end: lunch.end, description: lunch.description, habit: lunch.habit, target: lunch.target, required: lunch.required, penalty: lunch.penalty });
+      quest.opensAt = utc(quest.occurrence, "15:00", quest.timezone);
+      quest.dueAt = utc(quest.occurrence, "16:00", quest.timezone);
+      quest.status = Date.parse(instant) >= Date.parse(quest.opensAt) ? "available" : "scheduled";
+      for (const entry of state.ledger.filter(l => l.questId === quest.id && l.kind === "expiry" && !l.reversed)) entry.reversed = true;
+    }
+  }
+  if (walk) walk.archived = true;
+  const overlapsLunch = (q: { start: string }) => q.start >= "14:55" && q.start < "16:00";
+  for (const template of state.templates.filter(t => t.id === walk?.id || (t.title === "Five-minute movement break" && overlapsLunch(t)))) {
+    template.archived = true;
+    for (const quest of state.instances.filter(q => q.templateId === template.id && q.occurrence >= today && q.status !== "completed")) quest.status = "cancelled";
+  }
+  state.audit.push({ id: randomUUID(), at: instant, action: "lunch-walk-v4", detail: "Combined lunch and walk into one 3:00–4:00 PM quest requiring 2,500 recorded walk steps; removed overlapping movement breaks." });
+  save(state); await flush();
+}
 if (!state) {
     const now = new Date().toISOString(),
       s = fresh(now);
@@ -92,19 +119,11 @@ if (!state) {
         true,
       ],
       [
-        "Balanced lunch",
-        "Recovery",
-        "15:00",
-        "15:10",
-        "Include protein, vegetables and a comfortable rice portion.",
-        false,
-      ],
-      [
-        "Lunchtime walk",
+        "Lunch & 2,500-step walk",
         "Endurance",
-        "15:10",
+        "15:00",
         "16:00",
-        "A relaxed walk during the rest of your afternoon break.",
+        "Take 10 minutes for a balanced lunch, then walk for 50 minutes and record at least 2,500 walk steps.",
         true,
       ],
       [
@@ -132,7 +151,7 @@ if (!state) {
         false,
       ],
     ];
-    for (const h of ["10:55", "11:55", "14:55", "15:55", "16:55", "17:55"])
+    for (const h of ["10:55", "11:55", "16:55", "17:55"])
       seed.push([
         "Five-minute movement break",
         "Mobility",
@@ -160,6 +179,8 @@ if (!state) {
             startDate: s.settings.rotationAnchor,
             grace: 15,
             penalty: required ? 5 : 0,
+            habit: title === "Lunch & 2,500-step walk" ? "walking" : "general",
+            target: title === "Lunch & 2,500-step walk" ? 2500 : 1,
           }),
           id: randomUUID(),
           createdAt: now,

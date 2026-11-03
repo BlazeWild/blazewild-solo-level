@@ -76,6 +76,14 @@ test("inclusive grace boundary wins, retries never double-award", () => {
   assert.equal(totals(s).xp, 20);
   assert.equal(s.ledger.filter((l) => l.kind === "completion").length, 1);
 });
+test("step-target walking quest cannot complete below its recorded target", () => {
+  const s = fixture();
+  Object.assign(s.instances[0], { habit: "walking", target: 2500 });
+  assert.throws(() => act(s, id, "complete", "2026-12-31T04:30:00.000Z", { value: 2499 }), /2,500 steps/);
+  act(s, id, "complete", "2026-12-31T04:30:00.000Z", { value: 2500 });
+  assert.equal(s.instances[0].status, "completed");
+  assert.equal(s.instances[0].completedValue, 2500);
+});
 test("strict grace zero and opening boundary", () => {
   const s = fixture();
   s.instances[0].grace = 0;

@@ -115,6 +115,7 @@ function App() {
     [chat, setChat] = useState<{ role: string; text: string }[]>([]),
     [chatInput, setChatInput] = useState(""),
     [agentOpen, setAgentOpen] = useState(false),
+    [questValues, setQuestValues] = useState<Record<string, string>>({}),
     [selectedQuest, setSelectedQuest] = useState<Instance | null>(null);
   const refresh = async () => {
     try {
@@ -271,7 +272,10 @@ function App() {
   const editLog = (key: string, value: any) =>
     setLog({ ...activeLog, [key]: value });
   const questAction = (q: Instance, action: string) =>
-    safe(() => run(`/quests/${encodeURIComponent(q.id)}/${action}`));
+    safe(() => run(`/quests/${encodeURIComponent(q.id)}/${action}`, "POST",
+      action === "complete" && q.habit === "walking" && q.target > 1
+        ? { value: Number(questValues[q.id]) }
+        : {}));
   const sendAgent = async () => {
     const message = chatInput.trim(); if (!message || busy) return;
     setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); setBusy(true);
@@ -325,6 +329,22 @@ function App() {
           {q.target} · {q.status} {q.grace > 0 && `· ${q.grace}m grace`}
         </small>
         <small>{q.description}</small>
+        {q.habit === "walking" && q.target > 1 && (
+          <label className="quest-value">
+            Steps during this walk
+            <input
+              type="number"
+              min={q.target}
+              max="100000"
+              step="1"
+              disabled={q.status === "completed"}
+              value={q.status === "completed" ? q.completedValue ?? "" : questValues[q.id] ?? ""}
+              placeholder={`Minimum ${q.target.toLocaleString()}`}
+              onChange={(e) => setQuestValues(v => ({ ...v, [q.id]: e.target.value }))}
+            />
+            <small>{q.status === "completed" ? `${q.completedValue?.toLocaleString()} steps recorded` : `Required: ${q.target.toLocaleString()}+ steps. Below this is a failed quest.`}</small>
+          </label>
+        )}
         {q.proofRequired && <label className="button">{q.proofUrl ? "Replace photo proof" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(q.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}
         <div className="quest-actions">
           {["scheduled", "available"].includes(q.status) && (

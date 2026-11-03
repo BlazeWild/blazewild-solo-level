@@ -224,6 +224,7 @@ export function act(
     opensAt?: string;
     dueAt?: string;
     minutes?: number;
+    value?: number;
   } = {},
 ) {
   const q = s.instances.find((q) => q.id === id);
@@ -247,6 +248,11 @@ export function act(
       throw Error("Completion must be inside the quest window including grace");
     if (q.proofRequired && !q.proofUrl)
       throw Error("Upload photo proof before completing this quest");
+    if (q.habit === "walking" && q.target > 1) {
+      if (!Number.isInteger(input.value) || input.value! < q.target)
+        throw Error(`Enter at least ${q.target.toLocaleString()} steps to complete this quest`);
+      q.completedValue = input.value;
+    }
     if (action === "correct" && !input.note?.trim())
       throw Error("A correction needs a note");
     if (action === "complete" && q.status === "missed")
@@ -278,6 +284,7 @@ export function act(
       l.reversed = true;
     q.generation++;
     q.completedAt = undefined;
+    q.completedValue = undefined;
     q.status = "scheduled";
     reconcile(s, now);
   } else if (action === "excuse" || action === "cancel") {

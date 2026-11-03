@@ -484,6 +484,8 @@ progress.hp::-webkit-progress-value {
   flex-wrap: wrap;
   margin-top: 8px;
 }
+.quest-value { display: grid; gap: 5px; max-width: 270px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.quest-value input { min-height: 36px; }
 .quest-actions button {
   background: transparent;
   border: 0;
