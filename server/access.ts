@@ -6,7 +6,9 @@ const same = (a: string, b: string) => timingSafeEqual(digest(a), digest(b));
 export function accessConfig(env: NodeJS.ProcessEnv) {
   const hosted = env.RENDER === "true" || env.HOST === "0.0.0.0", username = env.AUTH_USERNAME || env.AUTH_EMAIL || "", password = env.AUTH_PASSWORD || "", sessionSecret = env.SESSION_SECRET || "";
   const originValue = env.APP_URL || env.RENDER_EXTERNAL_URL;
-  if (hosted && (!username || password.length < 20 || sessionSecret.length < 32)) throw Error("Hosted mode requires AUTH_USERNAME/AUTH_EMAIL, AUTH_PASSWORD (20+ characters), and SESSION_SECRET (32+ characters)");
+  if (hosted && !username) throw Error("Hosted mode is missing AUTH_USERNAME or AUTH_EMAIL");
+  if (hosted && password.length < 20) throw Error("Hosted mode is missing AUTH_PASSWORD or it is shorter than 20 characters");
+  if (hosted && sessionSecret.length < 32) throw Error("Hosted mode is missing SESSION_SECRET or it is shorter than 32 characters");
   if (hosted && (!originValue || new URL(originValue).protocol !== "https:")) throw Error("Hosted mode requires an HTTPS APP_URL or RENDER_EXTERNAL_URL");
   return { hosted, username, password, sessionSecret: sessionSecret || randomBytes(32).toString("hex"), origin: originValue ? new URL(originValue).origin : "", host: hosted ? "0.0.0.0" : "127.0.0.1" };
 }
