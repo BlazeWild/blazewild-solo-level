@@ -34,7 +34,12 @@ export async function putRecord(namespace: string, id: string, data: unknown) { 
 export async function getRecord<T>(namespace: string, id: string): Promise<T | undefined> { const rows = await sql`SELECT data FROM app_records WHERE namespace=${namespace} AND id=${id}`; return rows[0]?.data as T | undefined; }
 export async function listRecords<T>(namespace: string): Promise<T[]> { const rows = await sql`SELECT data FROM app_records WHERE namespace=${namespace} ORDER BY updated_at`; return rows.map(r => r.data as T); }
 export async function deleteRecords(namespace: string, ids: string[]) { if (!ids.length) return; await sql`DELETE FROM app_records WHERE namespace=${namespace} AND id = ANY(${ids})`; }
-export async function putProof(id: string, questId: string, mime: string, bytes: Buffer) { await sql`INSERT INTO quest_proofs(id,quest_id,mime_type,bytes) VALUES (${id},${questId},${mime},${bytes})`; }
+export async function putProof(id: string, questId: string, mime: string, bytes: Buffer) {
+  // Neon HTTP parameters do not accept Node Buffers directly. Send text and
+  // let Postgres convert it to bytea so photo uploads work consistently.
+  const base64 = bytes.toString("base64");
+  await sql`INSERT INTO quest_proofs(id,quest_id,mime_type,bytes) VALUES (${id},${questId},${mime},decode(${base64}, 'base64'))`;
+}
 export async function getProof(id: string) { const rows = await sql`SELECT mime_type,bytes FROM quest_proofs WHERE id=${id}`; return rows[0] as { mime_type: string; bytes: Buffer } | undefined; }
 const stored = await sql`SELECT data FROM app_state WHERE id='owner'`;
 if (stored[0]) state = stored[0].data as State;

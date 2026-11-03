@@ -116,20 +116,6 @@ app.delete("/api/templates/:id", (req, res) => {
   });
   res.json({ ok: true });
 });
-app.post("/api/quests/:id/:action", (req, res) => {
-  const input = z
-    .object({
-      completedAt: z.string().optional(),
-      note: z.string().max(2000).optional(),
-      opensAt: z.string().optional(),
-      dueAt: z.string().optional(),
-      minutes: z.number().int().min(1).max(120).optional(),
-      value: z.number().int().min(0).max(100000).optional(),
-    })
-    .parse(req.body);
-  transaction((s) => act(s, req.params.id, req.params.action, now(), input));
-  res.json({ ok: true });
-});
 app.put("/api/settings", (req, res) => {
   const settings = settingsSchema.parse(req.body);
   transaction((s) => {
@@ -167,6 +153,20 @@ app.post("/api/quests/:id/proof", upload.single("photo"), async (req, res) => {
   if (!read().instances.some(q => q.id === req.params.id)) throw Error("Quest not found");
   const id = randomUUID(); await putProof(id, String(req.params.id), req.file.mimetype, req.file.buffer);
   transaction((s) => { const q = s.instances.find(q => q.id === req.params.id); if (!q) throw Error("Quest not found"); q.proofUrl = `/api/proofs/${id}`; audit(s, now(), "photo-proof", q.title); });
+  res.json({ ok: true });
+});
+app.post("/api/quests/:id/:action", (req, res) => {
+  const input = z
+    .object({
+      completedAt: z.string().optional(),
+      note: z.string().max(2000).optional(),
+      opensAt: z.string().optional(),
+      dueAt: z.string().optional(),
+      minutes: z.number().int().min(1).max(120).optional(),
+      value: z.number().int().min(0).max(100000).optional(),
+    })
+    .parse(req.body);
+  transaction((s) => act(s, req.params.id, req.params.action, now(), input));
   res.json({ ok: true });
 });
 app.get("/api/proofs/:file", async (req, res) => { if (!/^[a-f0-9-]+$/i.test(req.params.file)) return res.status(404).end(); const proof = await getProof(req.params.file); if (!proof) return res.status(404).end(); res.type(proof.mime_type).send(Buffer.from(proof.bytes)); });
