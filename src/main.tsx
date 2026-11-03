@@ -1864,6 +1864,10 @@ function ActionModal({
     [error, setError] = useState("");
   const utc = (v: string) =>
     DateTime.fromISO(v, { zone: q.timezone }).toUTC().toISO();
+  const inGracePeriod =
+    action === "complete" &&
+    Date.now() > Date.parse(q.dueAt) &&
+    Date.now() <= Date.parse(q.dueAt) + q.grace * 60_000;
   return (
     <Dialog
       title={
@@ -1898,6 +1902,7 @@ function ActionModal({
         {action === "complete" ? (
           <>
             <p>Mark <b>{q.title}</b> complete? This is permanent and cannot be unchecked.</p>
+            {inGracePeriod && <p className="warning">You are in the {q.grace}-minute grace period. The planned finish time was {local(q.dueAt)}, but completion is still allowed until {local(new Date(Date.parse(q.dueAt) + q.grace * 60_000).toISOString())}.</p>}
             {q.habit === "walking" && q.target > 1 && <p>Recorded steps: <b>{value.value?.toLocaleString()}</b> / {q.target.toLocaleString()}.</p>}
           </>
         ) : action === "correct" ? (
