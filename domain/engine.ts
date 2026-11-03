@@ -4,6 +4,7 @@ import {
   type State,
   type Instance,
   type Ledger,
+  type Template,
   localDate,
   utc,
   reward,
@@ -28,6 +29,27 @@ function entry(s: State, now: string, key: string, fields: Partial<Ledger>) {
   });
 }
 export function materialize(s: State, now: string) {
+  const rotationDay = (day: string) =>
+    ((Math.floor(DateTime.fromISO(day).diff(DateTime.fromISO(s.settings.rotationAnchor), "days").days) + s.settings.rotationOffset) % 5 + 5) % 5;
+  const isActiveRestDay = (day: string) => rotationDay(day) === 4;
+  const today = DateTime.fromISO(now).setZone(s.settings.timezone).startOf("day");
+  const last = DateTime.fromISO(s.lastReconcile).setZone(s.settings.timezone).startOf("day");
+  const begin = last < today ? last : today;
+  for (let d = begin; d <= today.plus({ days: 14 }); d = d.plus({ days: 1 })) {
+    const day = d.toISODate()!;
+    if (!isActiveRestDay(day)) continue;
+    const id = `active-rest-basketball-${day}`;
+    if (s.templates.some(t => t.id === id)) continue;
+    s.templates.push({
+      id,
+      title: "Active-rest basketball",
+      description: "Play basketball from 7:00 to 8:30 AM. This is active recovery, so there is no separate morning training quest today.",
+      category: "Endurance", habit: "training", difficulty: "normal", recurrence: "once",
+      timezone: s.settings.timezone, start: "07:00", end: "08:30", startDate: day,
+      grace: 15, target: 1, reminderLead: 15, required: true, penalty: 5,
+      archived: false, proofRequired: false, createdAt: now,
+    } satisfies Template);
+  }
   for (const t of s.templates) {
     if (t.archived) continue;
     const today = DateTime.fromISO(now).setZone(t.timezone).startOf("day");
@@ -70,6 +92,23 @@ export function materialize(s: State, now: string) {
         status: s.settings.restDates.includes(day) ? "excused" : "scheduled",
         generation: 0,
       });
+    }
+  }
+  const wake = s.templates.find(t => t.title === "Wake & reset");
+  const training = s.templates.find(t => t.title === "Morning training / planned recovery");
+  for (const quest of s.instances) {
+    if (!isActiveRestDay(quest.occurrence)) continue;
+    if (training && quest.templateId === training.id && quest.status !== "completed") {
+      quest.status = "cancelled";
+      continue;
+    }
+    if (wake && quest.templateId === wake.id && quest.status !== "completed") {
+      Object.assign(quest, {
+        title: "Wake at 6:30 AM", start: "06:30", end: "06:45",
+        description: "Wake at 6:30 AM for active-rest-day basketball. Water, brush teeth, and get ready.",
+      });
+      quest.opensAt = utc(quest.occurrence, "06:30", quest.timezone);
+      quest.dueAt = utc(quest.occurrence, "06:45", quest.timezone);
     }
   }
 }
