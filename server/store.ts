@@ -6,6 +6,8 @@ import {
   templateSchema,
   type State,
   type Template,
+  localDate,
+  utc,
 } from "../domain/model.js";
 import { materialize } from "../domain/engine.js";
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL is required; Neon is the authoritative database");
@@ -36,6 +38,23 @@ export async function putProof(id: string, questId: string, mime: string, bytes:
 export async function getProof(id: string) { const rows = await sql`SELECT mime_type,bytes FROM quest_proofs WHERE id=${id}`; return rows[0] as { mime_type: string; bytes: Buffer } | undefined; }
 const stored = await sql`SELECT data FROM app_state WHERE id='owner'`;
 if (stored[0]) state = stored[0].data as State;
+if (state && !state.audit.some(a => a.action === "break-schedule-v3")) {
+  const instant = new Date().toISOString(), today = localDate(instant, state.settings.timezone);
+  state.settings.lunch = "15:00";
+  const schedule = new Map([["Balanced lunch", ["15:00", "15:10", "Take ten calm minutes for a balanced lunch during your 3–4 PM break."]], ["Lunchtime walk", ["15:10", "16:00", "Use the remaining break for a relaxed walk."]]]);
+  for (const template of state.templates) {
+    const update = schedule.get(template.title); if (!update) continue;
+    [template.start, template.end, template.description] = update;
+    for (const quest of state.instances.filter(q => q.templateId === template.id && q.occurrence >= today && q.status !== "completed")) {
+      quest.start = update[0]; quest.end = update[1]; quest.description = update[2];
+      quest.opensAt = utc(quest.occurrence, update[0], quest.timezone); quest.dueAt = utc(quest.occurrence, update[1], quest.timezone);
+      quest.status = Date.parse(instant) >= Date.parse(quest.opensAt) ? "available" : "scheduled";
+      for (const entry of state.ledger.filter(l => l.questId === quest.id && l.kind === "expiry" && !l.reversed)) entry.reversed = true;
+    }
+  }
+  state.audit.push({ id: randomUUID(), at: instant, action: "break-schedule-v3", detail: "Break migrated to 3:00–4:00 PM Nepal time: lunch 3:00–3:10 and walk 3:10–4:00." });
+  save(state); await flush();
+}
 if (!state) {
     const now = new Date().toISOString(),
       s = fresh(now);
