@@ -78,7 +78,7 @@ async function createDailyAdventure() {
   const day = localDate(now(), read().settings.timezone), existing = read().instances.find(q => q.occurrence === day && q.proofRequired && q.title.startsWith("Surprise quest:"));
   if (existing) return existing;
   const place = await integrations.randomAdventure();
-  const value = templateSchema.parse({ title: `Surprise quest: ${place}`, description: `Visit ${place} safely, preferably in daylight, and upload a photo as proof. This optional quest stays open until 10:30 PM Nepal time.`, category: "Consistency", habit: "walking", difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "06:00", end: "22:30", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
+  const value = templateSchema.parse({ title: `Surprise quest: ${place}`, description: `A short, nearby Kirtipur quest: take 10–25 minutes, stay on public familiar routes, and upload one photo as proof. This optional quest is open from 4:00 PM to 8:00 PM Nepal time.`, category: "Consistency", habit: "walking", difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "16:00", end: "20:00", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
   const t = { ...value, id: randomUUID(), createdAt: now() };
   transaction(s => { s.templates.push(t); materialize(s, now()); audit(s, now(), "adventure", t.title); });
   return t;

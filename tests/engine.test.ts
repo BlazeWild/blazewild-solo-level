@@ -84,6 +84,25 @@ test("step-target walking quest cannot complete below its recorded target", () =
   assert.equal(s.instances[0].status, "completed");
   assert.equal(s.instances[0].completedValue, 2500);
 });
+test("active-rest days replace the lunch step target with a zero-XP rest break", () => {
+  const s = fixture("2026-12-31T03:00:00.000Z");
+  s.settings.rotationAnchor = "2026-12-27"; // 31 Dec is day five of the cycle.
+  s.templates.push({
+    ...templateSchema.parse({
+      title: "Lunch & 2,500-step walk", category: "Endurance", habit: "walking",
+      difficulty: "easy", recurrence: "daily", timezone: "Asia/Kathmandu",
+      start: "15:00", end: "16:00", startDate: "2026-12-31", grace: 15,
+      target: 2500, required: true, penalty: 5,
+    }), id: "lunch", createdAt: s.createdAt,
+  });
+  materialize(s, "2026-12-31T03:00:00.000Z");
+  const lunch = s.instances.find(q => q.templateId === "lunch")!;
+  assert.equal(lunch.title, "Lunch & rest break");
+  assert.equal(lunch.habit, "general");
+  assert.equal(lunch.rewardXp, 0);
+  assert.equal(lunch.required, false);
+  assert.ok(s.instances.some(q => q.title === "Optional terrace walk or easy pull-ups" && q.rewardXp === 0));
+});
 test("strict grace zero and opening boundary", () => {
   const s = fixture();
   s.instances[0].grace = 0;

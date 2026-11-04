@@ -39,14 +39,25 @@ export function materialize(s: State, now: string) {
     const day = d.toISODate()!;
     if (!isActiveRestDay(day)) continue;
     const id = `active-rest-basketball-${day}`;
-    if (s.templates.some(t => t.id === id)) continue;
-    s.templates.push({
-      id,
-      title: "Active-rest basketball",
-      description: "Play basketball from 7:00 to 8:30 AM. This is active recovery, so there is no separate morning training quest today.",
-      category: "Endurance", habit: "training", difficulty: "normal", recurrence: "once",
-      timezone: s.settings.timezone, start: "07:00", end: "08:30", startDate: day,
-      grace: 15, target: 1, reminderLead: 15, required: true, penalty: 5,
+    if (!s.templates.some(t => t.id === id)) {
+      s.templates.push({
+        id,
+        title: "Active-rest basketball",
+        description: "Play basketball from 7:00 to 8:30 AM. This is active recovery, so there is no separate morning training quest today.",
+        category: "Endurance", habit: "training", difficulty: "normal", recurrence: "once",
+        timezone: s.settings.timezone, start: "07:00", end: "08:30", startDate: day,
+        grace: 15, target: 1, reminderLead: 15, required: true, penalty: 5,
+        archived: false, proofRequired: false, createdAt: now,
+      } satisfies Template);
+    }
+    const recoveryId = `active-rest-recovery-${day}`;
+    if (!s.templates.some(t => t.id === recoveryId)) s.templates.push({
+      id: recoveryId,
+      title: "Optional terrace walk or easy pull-ups",
+      description: "Choose one: a gentle 5–10 minute terrace walk, or a few easy pull-ups with plenty left in reserve. Skip it if recovery needs rest. No step target and no XP.",
+      category: "Recovery", habit: "general", difficulty: "easy", rewardXp: 0, recurrence: "once",
+      timezone: s.settings.timezone, start: "17:00", end: "18:00", startDate: day,
+      grace: 15, target: 1, reminderLead: 15, required: false, penalty: 0,
       archived: false, proofRequired: false, createdAt: now,
     } satisfies Template);
   }
@@ -109,6 +120,14 @@ export function materialize(s: State, now: string) {
       });
       quest.opensAt = utc(quest.occurrence, "06:30", quest.timezone);
       quest.dueAt = utc(quest.occurrence, "06:45", quest.timezone);
+    }
+    if (/^Lunch & 2,500-step walk$/.test(quest.title) && quest.status !== "completed") {
+      Object.assign(quest, {
+        title: "Lunch & rest break",
+        description: "Take your lunch break and rest. No walking or step target is needed on an active-rest day; this is a zero-XP recovery quest.",
+        category: "Recovery", habit: "general", target: 1, rewardXp: 0,
+        required: false, penalty: 0,
+      });
     }
   }
 }

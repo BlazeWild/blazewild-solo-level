@@ -795,7 +795,8 @@ function App() {
                 </div>
                 <div className="card">
                   <span className="tag">A LITTLE EVIDENCE EVERY DAY</span>
-                  <h2>Log today</h2>
+                <h2>Log today or backfill a day</h2>
+                <p className="muted">Missed steps, weight, pull-ups, or another measurement? Pick that past date and save it here.</p>
                   {logForm}
                 </div>
               </aside>
@@ -1121,7 +1122,7 @@ function App() {
               <div>
                 <h2>Evidence of progress</h2>
                 <p className="muted">
-                  Your measurements only. Missing days remain gaps.
+                  Your measurements only. Missing days remain gaps until you backfill them below.
                 </p>
               </div>
               <div className="row">
@@ -1167,7 +1168,8 @@ function App() {
               </div>
             </div>
             <div className="card">
-              <h2>Add a measurement</h2>
+              <h2>Add or backfill a measurement</h2>
+              <p className="muted">Select any past date to add or correct steps, weight, sleep, desk time, pull-ups, or handstand practice. Saving replaces only that date’s log.</p>
               {logForm}
             </div>
           </>

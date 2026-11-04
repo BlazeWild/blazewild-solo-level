@@ -302,11 +302,28 @@ async function generateGemini(prompt: string, generationConfig: Record<string, n
   throw Error(`Gemini is temporarily unavailable (${lastStatus}). Please retry in a moment.`);
 }
 export async function randomAdventure() {
-  const fallback = ["Bagh Bhairab Temple", "a nearby temple early in the morning", "the Jholunge Pul", "Tribhuvan University grounds"];
-  if (!process.env.GEMINI_API_KEY) return fallback[Math.floor(Math.random() * fallback.length)];
-  let data: any; try { data = await generateGemini("Suggest exactly one safe, public, low-cost photo-adventure destination in or near Kirtipur, Nepal. Return only the place name, maximum 80 characters. Do not suggest restricted or dangerous places.", { temperature: 0.8, maxOutputTokens: 40 }); } catch { return fallback[Math.floor(Math.random() * fallback.length)]; }
-  const place = String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().replace(/[\r\n"*]/g, "").slice(0, 80);
-  return place || fallback[Math.floor(Math.random() * fallback.length)];
+  // Keep this deliberately curated: the model may choose a prompt, but cannot
+  // send the player to an invented or distant destination.
+  const options = [
+    "Bagh Bhairab Temple entrance",
+    "Tribhuvan University gate",
+    "Kirtipur historic streets",
+    "Your terrace: a skyline photo",
+    "A nearby local lane: a detail-photo walk",
+  ];
+  const fallback = () => options[Math.floor(Math.random() * options.length)];
+  if (!process.env.GEMINI_API_KEY) return fallback();
+  let data: any;
+  try {
+    data = await generateGemini(
+      `Choose exactly one item from this approved list of short, safe 10–25 minute quests in Kirtipur, Nepal. Return the item exactly as written and nothing else: ${options.map((v, i) => `${i + 1}. ${v}`).join(" | ")}`,
+      { temperature: 0.5, maxOutputTokens: 30 },
+    );
+  } catch {
+    return fallback();
+  }
+  const place = String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().replace(/[\r\n"*]/g, "");
+  return options.includes(place) ? place : fallback();
 }
 export function ics(s: State) {
   const escape = (v: string) =>
