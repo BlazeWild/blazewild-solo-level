@@ -161,6 +161,7 @@ export type State = {
     status: string;
     error?: string;
     channel: string;
+    kind?: "lead" | "start" | "due" | "snooze" | "test";
   }[];
   timer: { end: number; remaining: number };
   gapPending: boolean;

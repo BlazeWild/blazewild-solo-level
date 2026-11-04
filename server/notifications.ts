@@ -11,6 +11,23 @@ export const pushConfigured = () =>
     process.env.VAPID_PRIVATE_KEY &&
     process.env.VAPID_SUBJECT?.startsWith("mailto:")
   );
+export function notificationCopy(s: State, questId: string, kind?: string) {
+  const q = s.instances.find((item) => item.id === questId);
+  if (!q) return { title: "Level Up test notification", body: "Your browser notifications are working." };
+  const time = (value: string) =>
+    DateTime.fromISO(value).setZone(s.settings.timezone).toFormat("h:mm a");
+  if (kind === "lead")
+    return { title: `Coming up: ${q.title}`, body: `Starts at ${time(q.opensAt)}. ${q.reminderLead} minutes to get ready.` };
+  if (kind === "start")
+    return { title: `Quest available: ${q.title}`, body: `You can start now. Quest window ends at ${time(q.dueAt)}.` };
+  if (kind === "due")
+    return q.grace > 0
+      ? { title: `Grace period: ${q.title}`, body: `The quest window ended at ${time(q.dueAt)}. Complete it by ${time(DateTime.fromISO(q.dueAt).plus({ minutes: q.grace }).toISO()!)}.` }
+      : { title: `Quest ended: ${q.title}`, body: `The quest window ended at ${time(q.dueAt)}.` };
+  if (kind === "snooze")
+    return { title: `Snooze finished: ${q.title}`, body: `Your quest is waiting. Deadline: ${time(q.dueAt)}.` };
+  return { title: q.title, body: `Quest window: ${time(q.opensAt)}–${time(q.dueAt)}.` };
+}
 export function queue(s: State, now: string) {
   if (s.settings.notifications === "off" || s.gapPending) return;
   // Do not generate jobs guaranteed to fail before Web Push is configured.
@@ -28,6 +45,7 @@ export function queue(s: State, now: string) {
     if (!["scheduled", "available"].includes(q.status)) continue;
     for (const [kind, at] of [
       ["lead", Date.parse(q.opensAt) - q.reminderLead * 60000],
+      ["start", Date.parse(q.opensAt)],
       ["due", Date.parse(q.dueAt)],
       ...(q.snoozeUntil ? [["snooze", Date.parse(q.snoozeUntil)]] : []),
     ] as [string, number][]) {
@@ -45,6 +63,7 @@ export function queue(s: State, now: string) {
           at: now,
           status: "pending",
           channel: s.settings.notifications,
+          kind: kind as "lead" | "start" | "due" | "snooze",
         });
     }
   }
@@ -57,9 +76,7 @@ export async function deliver() {
     for (const j of pending) j.status = "sending";
     return pending.map((j) => ({
       ...j,
-      title:
-        s.instances.find((q) => q.id === j.questId)?.title ??
-        "Level Up test notification",
+      ...notificationCopy(s, j.questId, j.kind),
     }));
   });
   for (const j of jobs) {
@@ -72,7 +89,7 @@ export async function deliver() {
           );
         await promisify(execFile)(
           "notify-send",
-          ["--app-name=Level Up", j.title, "A reminder is not a completion."],
+          ["--app-name=Level Up", j.title, j.body],
           { timeout: 5000 },
         );
       } else if (j.channel === "push") {
@@ -90,7 +107,7 @@ export async function deliver() {
             r,
             JSON.stringify({
               title: j.title,
-              body: "Open Level Up to view your quest.",
+              body: j.body,
               tag: j.id,
             }),
             { TTL: 600, timeout: 5000 },

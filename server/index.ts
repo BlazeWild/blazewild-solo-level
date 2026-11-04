@@ -22,7 +22,7 @@ import {
   progress,
 } from "../domain/engine.js";
 import { parseBackup } from "./backup.js";
-import { queue, deliver, pushConfigured } from "./notifications.js";
+import { queue, deliver, pushConfigured, notificationCopy } from "./notifications.js";
 import * as integrations from "./integrations.js";
 import { accessConfig, accessGuard, authHandlers, isAuthenticated } from "./access.js";
 const app = express();
@@ -250,6 +250,7 @@ app.post("/api/notifications/test", async (_req, res) => {
       at: now(),
       status: "pending",
       channel: s.settings.notifications,
+      kind: "test",
     });
   });
   await deliver();
@@ -263,9 +264,7 @@ app.post("/api/notifications/claim", (_req, res) => {
     for (const j of jobs) j.status = "claimed";
     return jobs.map((j) => ({
       ...j,
-      title:
-        s.instances.find((q) => q.id === j.questId)?.title ??
-        "Level Up test notification",
+      ...notificationCopy(s, j.questId, j.kind),
     }));
   });
   res.json(jobs);

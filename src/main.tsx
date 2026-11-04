@@ -167,10 +167,17 @@ function App() {
               Notification.permission !== "granted"
             )
               throw Error("Browser notification permission is not granted");
-            new Notification(j.title, {
-              body: "Open Level Up to view your quest.",
-              tag: j.id,
-            });
+            if ("serviceWorker" in navigator) {
+              const registration = await navigator.serviceWorker.register("/sw.js");
+              await navigator.serviceWorker.ready;
+              await registration.showNotification(j.title, {
+                body: j.body,
+                tag: j.id,
+                icon: "/icon.svg",
+              });
+            } else {
+              new Notification(j.title, { body: j.body, tag: j.id });
+            }
             success = true;
           } catch (e) {
             err = (e as Error).message;
