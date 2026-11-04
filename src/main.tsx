@@ -421,11 +421,11 @@ function App() {
       <div className="form-grid">
         {[
           ["steps", "Steps (manual)", 1, 100000],
-          ["desk", "Desk minutes", 1, 1440],
+          ["desk", "Desk time (hours)", 0.25, 24],
           ["weight", "Weight (kg)", 0.1, 300],
           ["sleep", "Sleep (hours)", 0.25, 24],
           ["waist", "Waist (inches)", 0.1, 100],
-          ["pullups", "Clean pull-ups", 1, 200],
+          ["pullups", "Clean pull-ups (total reps today)", 1, 200],
           ["handstand", "Handstand (seconds)", 1, 3600],
         ].map(([key, label, step, max]) => (
           <label key={key}>
@@ -435,11 +435,11 @@ function App() {
               min="0"
               max={max}
               step={step}
-              value={(activeLog as any)[key] ?? ""}
+              value={key === "desk" && activeLog.desk !== null ? activeLog.desk / 60 : (activeLog as any)[key] ?? ""}
               onChange={(e) =>
                 editLog(
                   String(key),
-                  e.target.value === "" ? null : Number(e.target.value),
+                  e.target.value === "" ? null : Number(e.target.value) * (key === "desk" ? 60 : 1),
                 )
               }
             />
@@ -739,8 +739,8 @@ function App() {
                     Desk progression · week {s.settings.deskWeek + 1}
                   </small>
                   <b>
-                    {Math.min(450, 180 + s.settings.deskWeek * 30)}
-                    <span> min target</span>
+                    {Math.min(7.5, 3 + s.settings.deskWeek * 0.5)}
+                    <span> hour target</span>
                   </b>
                   <small>
                     {s.settings.stepGoal.toLocaleString()} manual steps ·
@@ -1142,7 +1142,7 @@ function App() {
                 ["Weight & 7-day average", "weight", "kg", "average"],
                 ["Manual steps", "steps", "steps", "target"],
                 ["Sleep", "sleep", "hours"],
-                ["Desk time", "desk", "minutes"],
+                ["Desk time", "desk", "hours"],
                 ["Waist", "waist", "inches"],
                 ["Pull-ups", "pullups", "reps"],
                 ["Handstand", "handstand", "seconds"],
@@ -1318,6 +1318,7 @@ function App() {
               <SettingsForm
                 value={settings ?? s.settings}
                 onChange={setSettings}
+                pushConfigured={s.integrations.pushConfigured}
               />
               <button
                 className="primary"
@@ -1962,9 +1963,11 @@ function ActionModal({
 function SettingsForm({
   value: v,
   onChange,
+  pushConfigured,
 }: {
   value: Settings;
   onChange: (v: Settings) => void;
+  pushConfigured: boolean;
 }) {
   const field = (k: string, val: any) => onChange({ ...v, [k]: val });
   return (
@@ -2047,7 +2050,9 @@ function SettingsForm({
             onChange={(e) => field("notifications", e.target.value)}
           >
             {["off", "browser", "desktop", "push"].map((c) => (
-              <option key={c}>{c}</option>
+              <option key={c} disabled={c === "push" && !pushConfigured}>
+                {c === "push" && !pushConfigured ? "push (configure VAPID first)" : c}
+              </option>
             ))}
           </select>
         </label>

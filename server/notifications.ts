@@ -5,8 +5,16 @@ import { DateTime } from "luxon";
 import webpush from "web-push";
 import { transaction, listRecords, putRecord } from "./store.js";
 import { type State } from "../domain/model.js";
+export const pushConfigured = () =>
+  !!(
+    process.env.VAPID_PUBLIC_KEY &&
+    process.env.VAPID_PRIVATE_KEY &&
+    process.env.VAPID_SUBJECT?.startsWith("mailto:")
+  );
 export function queue(s: State, now: string) {
   if (s.settings.notifications === "off" || s.gapPending) return;
+  // Do not generate jobs guaranteed to fail before Web Push is configured.
+  if (s.settings.notifications === "push" && !pushConfigured()) return;
   const local = DateTime.fromISO(now)
     .setZone(s.settings.timezone)
     .toFormat("HH:mm");
@@ -68,12 +76,12 @@ export async function deliver() {
           { timeout: 5000 },
         );
       } else if (j.channel === "push") {
-        if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY)
+        if (!pushConfigured())
           throw Error("VAPID keys are not configured");
         webpush.setVapidDetails(
           process.env.VAPID_SUBJECT!,
-          process.env.VAPID_PUBLIC_KEY,
-          process.env.VAPID_PRIVATE_KEY,
+          process.env.VAPID_PUBLIC_KEY!,
+          process.env.VAPID_PRIVATE_KEY!,
         );
         const rows = await listRecords<any>("push_subscriptions");
         if (!rows.length) throw Error("No push subscription");

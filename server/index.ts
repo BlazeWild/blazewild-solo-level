@@ -22,7 +22,7 @@ import {
   progress,
 } from "../domain/engine.js";
 import { parseBackup } from "./backup.js";
-import { queue, deliver } from "./notifications.js";
+import { queue, deliver, pushConfigured } from "./notifications.js";
 import * as integrations from "./integrations.js";
 import { accessConfig, accessGuard, authHandlers, isAuthenticated } from "./access.js";
 const app = express();
@@ -51,7 +51,7 @@ app.get("/api/state", async (_req, res) => {
       calendarConfigured: integrations.calendarReady(),
       calendarConnected: !!(await integrations.connection()),
       aiConfigured: !!(process.env.GEMINI_API_KEY || (process.env.AI_ENDPOINT && process.env.AI_MODEL)),
-      pushConfigured: !!process.env.VAPID_PUBLIC_KEY,
+      pushConfigured: pushConfigured(),
       desktopConfigured: process.env.DESKTOP_NOTIFICATIONS === "true",
     },
   });
@@ -118,6 +118,8 @@ app.delete("/api/templates/:id", (req, res) => {
 });
 app.put("/api/settings", (req, res) => {
   const settings = settingsSchema.parse(req.body);
+  if (settings.notifications === "push" && !pushConfigured())
+    throw Error("Web Push is not configured. Add valid VAPID keys and a mailto: VAPID subject, then restart the server.");
   transaction((s) => {
     const changedRotation = s.settings.rotationAnchor !== settings.rotationAnchor || s.settings.rotationOffset !== settings.rotationOffset;
     s.settings = settings;
@@ -237,6 +239,8 @@ app.post("/api/backup/restore", async (req, res) => {
   res.json({ ok: true, backup: path });
 });
 app.post("/api/notifications/test", async (_req, res) => {
+  if (read().settings.notifications === "push" && !pushConfigured())
+    throw Error("Web Push is not configured. Add valid VAPID keys and a mailto: VAPID subject, then restart the server.");
   transaction((s) => {
     if (s.settings.notifications === "off")
       throw Error("Choose a notification channel first");

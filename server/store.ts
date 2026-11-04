@@ -192,7 +192,7 @@ if (!state) {
         "Focus",
         "10:00",
         "13:00",
-        "Track actual desk minutes independently of your progression week.",
+        "Track actual desk hours independently of your progression week.",
         true,
       ],
       [

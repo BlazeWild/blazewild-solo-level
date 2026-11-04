@@ -401,7 +401,9 @@ export function progress(s: State, days: number, now: string) {
       waist: log?.waist ?? null,
       steps: log?.steps ?? null,
       sleep: log?.sleep ?? null,
-      desk: log?.desk ?? null,
+      // Desk time is stored as minutes so existing logs stay compatible, but
+      // user-facing progress reporting uses hours.
+      desk: log?.desk == null ? null : log.desk / 60,
       pullups: log?.pullups ?? null,
       handstand: log?.handstand ?? null,
       average: weights.length
