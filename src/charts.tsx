@@ -37,7 +37,7 @@ export function HabitRadar({ scores }: { scores: Record<string, number> }) {
             fill="#b7ed83"
             fillOpacity={0.22}
           />
-          <Tooltip />
+          <Tooltip cursor={false} />
         </RadarChart>
       </ResponsiveContainer>
     </div>
@@ -86,6 +86,7 @@ export function Chart({
             />
             <YAxis tick={{ fill: "#a5b1c4", fontSize: 11 }} width={42} />
             <Tooltip
+              cursor={false}
               contentStyle={{
                 background: "#151d29",
                 border: "1px solid #40506a",

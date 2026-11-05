@@ -103,6 +103,8 @@ export type Instance = Template & {
   completedAt?: string;
   proofUrl?: string;
   completedValue?: number;
+  /** A missed quest was later recorded as done within its original window. */
+  lateCorrection?: boolean;
   generation: number;
   snoozeUntil?: string;
 };

@@ -84,6 +84,21 @@ test("step-target walking quest cannot complete below its recorded target", () =
   assert.equal(s.instances[0].status, "completed");
   assert.equal(s.instances[0].completedValue, 2500);
 });
+test("late walking correction still requires and stores the walk step total", () => {
+  const s = fixture();
+  Object.assign(s.instances[0], { habit: "walking", target: 2500 });
+  reconcile(s, "2026-12-31T05:00:00.001Z");
+  assert.throws(() => act(s, id, "correct", "2026-12-31T05:02:00Z", {
+    completedAt: "2026-12-31T04:40:00Z", note: "Forgot to log", value: 2499,
+  }), /2,500 steps/);
+  act(s, id, "correct", "2026-12-31T05:02:00Z", {
+    completedAt: "2026-12-31T04:40:00Z", note: "Forgot to log", value: 2500,
+  });
+  assert.equal(s.instances[0].completedValue, 2500);
+  assert.equal(s.instances[0].lateCorrection, true);
+  assert.equal(totals(s).lifetime, 10);
+  assert.equal(progress(s, 7, "2026-12-31T05:02:00Z").at(-1)?.completion, 50);
+});
 test("active-rest days replace the lunch step target with a zero-XP rest break", () => {
   const s = fixture("2026-12-31T03:00:00.000Z");
   s.settings.rotationAnchor = "2026-12-27"; // 31 Dec is day five of the cycle.
@@ -134,7 +149,8 @@ test("expiry after boundary, correction reverses exactly once with audit", () =>
     note: "retry",
   });
   assert.equal(totals(s).hp, 100);
-  assert.equal(totals(s).lifetime, 20);
+  assert.equal(totals(s).lifetime, 10);
+  assert.equal(s.instances[0].lateCorrection, true);
   assert.equal(s.ledger.filter((l) => l.kind === "correction").length, 1);
   assert.ok(s.audit.some((a) => a.action === "correct"));
 });

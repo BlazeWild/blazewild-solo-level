@@ -302,28 +302,27 @@ async function generateGemini(prompt: string, generationConfig: Record<string, n
   throw Error(`Gemini is temporarily unavailable (${lastStatus}). Please retry in a moment.`);
 }
 export async function randomAdventure() {
-  // Keep this deliberately curated: the model may choose a prompt, but cannot
-  // send the player to an invented or distant destination.
+  // Deliberately local and varied: no invented destinations and no travel-only rotation.
   const options = [
-    "Bagh Bhairab Temple entrance",
-    "Tribhuvan University gate",
-    "Kirtipur historic streets",
-    "Your terrace: a skyline photo",
-    "A nearby local lane: a detail-photo walk",
+    { title: "Kirtipur detail-photo walk", description: "Take a short, familiar-route walk in Kirtipur and photograph one interesting local detail.", category: "Consistency" as const, habit: "walking" as const },
+    { title: "Terrace sky reset", description: "Spend 10 quiet minutes on your terrace, breathe slowly, and photograph the sky or skyline.", category: "Recovery" as const, habit: "meditation" as const },
+    { title: "Five-object creativity challenge", description: "At home in Kirtipur, arrange five ordinary objects into a small creative composition and photograph it.", category: "Focus" as const, habit: "general" as const },
+    { title: "Refresh your space", description: "Reset one small surface, shelf, or desk area for 10–15 minutes and photograph the finished result.", category: "Recovery" as const, habit: "general" as const },
+    { title: "Kirtipur color hunt", description: "On a familiar nearby lane, find and photograph three colors that make you smile.", category: "Consistency" as const, habit: "walking" as const },
   ];
   const fallback = () => options[Math.floor(Math.random() * options.length)];
   if (!process.env.GEMINI_API_KEY) return fallback();
   let data: any;
   try {
     data = await generateGemini(
-      `Choose exactly one item from this approved list of short, safe 10–25 minute quests in Kirtipur, Nepal. Return the item exactly as written and nothing else: ${options.map((v, i) => `${i + 1}. ${v}`).join(" | ")}`,
+      `Choose exactly one number from this approved list of short, safe 10–25 minute quests in Kirtipur, Nepal. Some are at home; do not invent travel. Return only the number: ${options.map((v, i) => `${i + 1}. ${v.title}`).join(" | ")}`,
       { temperature: 0.5, maxOutputTokens: 30 },
     );
   } catch {
     return fallback();
   }
-  const place = String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().replace(/[\r\n"*]/g, "");
-  return options.includes(place) ? place : fallback();
+  const choice = Number(String(data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim());
+  return Number.isInteger(choice) && options[choice - 1] ? options[choice - 1] : fallback();
 }
 export function ics(s: State) {
   const escape = (v: string) =>

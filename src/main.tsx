@@ -234,7 +234,7 @@ function App() {
     current = s.instances.filter(
       (q) => localDate(q.opensAt, s.settings.timezone) === today && q.status !== "cancelled",
     ),
-    done = current.filter((q) => q.status === "completed").length,
+    done = current.reduce((score, q) => score + (q.status === "completed" ? (q.lateCorrection ? 0.5 : 1) : 0), 0),
     eligible = current.filter(
       (q) => !["excused", "cancelled"].includes(q.status),
     ), surprise = current.find(q => q.proofRequired);
@@ -288,6 +288,12 @@ function App() {
     }
     setModal({ q, action: "complete", value });
   };
+  const setTodayRotation = (rotation: number) => {
+    const daysFromAnchor = Math.floor(DateTime.fromISO(today).diff(DateTime.fromISO(s.settings.rotationAnchor), "days").days);
+    const rotationOffset = ((rotation - daysFromAnchor) % 5 + 5) % 5;
+    if (rotationOffset === s.settings.rotationOffset) return;
+    safe(() => run("/settings", "PUT", { ...s.settings, rotationOffset }, `Training rotation changed to ${cycles[rotation]} · 10 XP spent`));
+  };
   const sendAgent = async () => {
     const message = chatInput.trim(); if (!message || busy) return;
     setChatInput(""); setChat(v => [...v, { role: "user", text: message }]); setBusy(true);
@@ -334,7 +340,7 @@ function App() {
         <button className="text-button" onClick={() => setSelectedQuest(q)}>View details</button>
         <small>
           {dateTime(q.opensAt)}–{dateTime(q.dueAt)} · {q.category} · target{" "}
-          {q.target} · {q.status} {q.grace > 0 && `· ${q.grace}m grace`}
+          {q.target} · {q.status}{q.lateCorrection && " · late correction (half credit)"} {q.grace > 0 && `· ${q.grace}m grace`}
         </small>
         <small>{q.description}</small>
         {q.habit === "walking" && q.target > 1 && (
@@ -381,7 +387,7 @@ function App() {
         </div>
       </div>
       <span className="xp">
-        +{q.rewardXp ?? reward[q.difficulty]} XP
+        +{q.lateCorrection ? Math.floor((q.rewardXp ?? reward[q.difficulty]) / 2) : q.rewardXp ?? reward[q.difficulty]} XP
         <small>
           {q.required ? `up to −${q.penalty} XP/HP` : "optional · no penalty"}
         </small>
@@ -735,6 +741,12 @@ function App() {
                       : cycles[cycle]}
                   </b>
                   <small>{current.some(q => q.title === "Active-rest basketball") ? "Wake 06:30 · basketball 07:00–08:30 · no morning training" : "08:00–09:00 · flexible, never forced"}</small>
+                  <label className="rotation-select">
+                    Change today's rotation (costs 10 XP)
+                    <select value={cycle} disabled={busy} onChange={(e) => setTodayRotation(Number(e.target.value))}>
+                      {cycles.map((name, index) => <option key={name} value={index}>{name}{index === 4 ? " · active rest" : ""}</option>)}
+                    </select>
+                  </label>
                 </div>
               </div>
               <div className="card">
@@ -1870,6 +1882,7 @@ function ActionModal({
   const [start, setStart] = useState(local(q.opensAt)),
     [end, setEnd] = useState(local(q.dueAt)),
     [at, setAt] = useState(local(q.dueAt)),
+    [stepValue, setStepValue] = useState(String(q.completedValue ?? value.value ?? "")),
     [note, setNote] = useState(""),
     [error, setError] = useState("");
   const utc = (v: string) =>
@@ -1895,7 +1908,7 @@ function ActionModal({
             action === "complete"
               ? (q.habit === "walking" && q.target > 1 ? { value: value.value } : {})
               : action === "correct"
-              ? { completedAt: utc(at), note }
+              ? { completedAt: utc(at), note, value: q.habit === "walking" && q.target > 1 ? Number(stepValue) : undefined }
               : { opensAt: utc(start), dueAt: utc(end), note },
           ).catch((e) => setError(e.message));
         }}
@@ -1918,7 +1931,7 @@ function ActionModal({
           <>
             <p>
               This records your claimed actual time and an audit note, and
-              reverses the original penalty once.
+              reverses the original penalty once. Late corrections earn half XP and half consistency credit.
             </p>
             <label>
               Actual completion time
@@ -1929,6 +1942,11 @@ function ActionModal({
                 onChange={(e) => setAt(e.target.value)}
               />
             </label>
+            {q.habit === "walking" && q.target > 1 && <label>
+              Steps during this walk
+              <input required type="number" min={q.target} max="100000" step="1" value={stepValue} placeholder={`At least ${q.target.toLocaleString()}`} onChange={(e) => setStepValue(e.target.value)} />
+              <small>Required: {q.target.toLocaleString()}+ steps. Below this is a failed quest.</small>
+            </label>}
           </>
         ) : (
           <>

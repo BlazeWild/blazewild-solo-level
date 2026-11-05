@@ -263,7 +263,7 @@ export function reconcile(
     if (
       qs.length &&
       new Set(qs.map((q) => q.occurrence)).size >= 3 &&
-      qs.filter((q) => q.status === "completed").length / qs.length >= 0.8
+      qs.reduce((score, q) => score + (q.status === "completed" ? (q.lateCorrection ? 0.5 : 1) : 0), 0) / qs.length >= 0.8
     )
       entry(s, now, `weekly:${week}`, { lifetime: 50, xp: 50 });
   }
@@ -319,18 +319,22 @@ export function act(
       l.reversed = true;
       entry(s, now, `correction:${l.id}`, { questId: id });
     }
+    const lateCorrection = action === "correct";
     q.status = "completed";
     q.completedAt = claimed;
+    q.lateCorrection = lateCorrection;
     const alreadyEarned = s.ledger.some(
       (l) => l.questId === id && l.kind === "completion",
     );
+    const fullReward = q.rewardXp ?? reward[q.difficulty];
+    const earnedReward = lateCorrection ? Math.floor(fullReward / 2) : fullReward;
     entry(s, now, `completion:${id}:${q.generation}`, {
       questId: id,
-      lifetime: alreadyEarned ? 0 : (q.rewardXp ?? reward[q.difficulty]),
-      xp: q.rewardXp ?? reward[q.difficulty],
+      lifetime: alreadyEarned ? 0 : earnedReward,
+      xp: earnedReward,
       hp: Math.min(2, 100 - totals(s).hp),
       category: q.category,
-      points: reward[q.difficulty] / 10,
+      points: (reward[q.difficulty] / 10) * (lateCorrection ? 0.5 : 1),
     });
   } else if (action === "undo") {
     throw Error("Completed quests are permanent and cannot be unchecked");
@@ -413,7 +417,7 @@ export function progress(s: State, days: number, now: string) {
       target: s.settings.stepGoal,
       completion: qs.length
         ? Math.round(
-            (qs.filter((q) => q.status === "completed").length / qs.length) *
+            (qs.reduce((score, q) => score + (q.status === "completed" ? (q.lateCorrection ? 0.5 : 1) : 0), 0) / qs.length) *
               100,
           )
         : null,
