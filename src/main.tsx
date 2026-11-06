@@ -116,6 +116,7 @@ function App() {
     [chatInput, setChatInput] = useState(""),
     [agentOpen, setAgentOpen] = useState(false),
     [questValues, setQuestValues] = useState<Record<string, string>>({}),
+    [proofLinks, setProofLinks] = useState<Record<string, string>>({}),
     [selectedQuest, setSelectedQuest] = useState<Instance | null>(null);
   const refresh = async () => {
     try {
@@ -320,6 +321,27 @@ function App() {
     archived: false,
     proofRequired: false,
   });
+  const proofLinkControl = (q: Instance) => q.proofRequired ? (
+    <div className="proof-link">
+      <label>
+        Photo proof link
+        <input
+          type="url"
+          inputMode="url"
+          placeholder="Paste a shared Google Drive, Photos, or Docs link"
+          disabled={q.status === "completed" || busy}
+          value={proofLinks[q.id] ?? q.proofUrl ?? ""}
+          onChange={(e) => setProofLinks(v => ({ ...v, [q.id]: e.target.value }))}
+        />
+      </label>
+      {q.proofUrl && <a href={q.proofUrl} target="_blank" rel="noreferrer">Open proof</a>}
+      {q.status !== "completed" && <button disabled={busy || !(proofLinks[q.id] ?? q.proofUrl ?? "").trim()} onClick={() => safe(async () => {
+        const proofUrl = (proofLinks[q.id] ?? q.proofUrl ?? "").trim();
+        await run(`/quests/${encodeURIComponent(q.id)}/proof-link`, "PUT", { proofUrl }, "Photo-proof link saved");
+        setProofLinks(v => ({ ...v, [q.id]: proofUrl }));
+      })}>Save link</button>}
+    </div>
+  ) : null;
   const questRow = (q: Instance) => (
     <div
       className={`quest ${q.status}`}
@@ -359,7 +381,7 @@ function App() {
             <small>{q.status === "completed" ? `${q.completedValue?.toLocaleString()} steps recorded` : `Required: ${q.target.toLocaleString()}+ steps. Below this is a failed quest.`}</small>
           </label>
         )}
-        {q.proofRequired && <label className="button">{q.proofUrl ? "Replace photo proof" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(q.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}
+        {proofLinkControl(q)}
         <div className="quest-actions">
           {["scheduled", "available"].includes(q.status) && (
             <>
@@ -734,13 +756,11 @@ function App() {
                 <div>
                   <small>Training rotation · day {cycle + 1} of 5</small>
                   <b>
-                    {current.some(q => q.title === "Active-rest basketball")
-                      ? "Active rest · basketball"
-                      : s.settings.restDates.includes(today)
+                    {s.settings.restDates.includes(today)
                       ? "Rest day"
-                      : cycles[cycle]}
+                      : cycle === 4 ? "Active rest · basketball" : cycles[cycle]}
                   </b>
-                  <small>{current.some(q => q.title === "Active-rest basketball") ? "Wake 06:30 · basketball 07:00–08:30 · no morning training" : "08:00–09:00 · flexible, never forced"}</small>
+                  <small>{cycle === 4 ? "Wake 06:30 · basketball 07:00–08:30 · no morning training" : "Wake 07:55 · training 08:00–09:00"}</small>
                   <label className="rotation-select">
                     Change today's rotation (costs 10 XP)
                     <select value={cycle} disabled={busy} onChange={(e) => setTodayRotation(Number(e.target.value))}>
@@ -789,7 +809,7 @@ function App() {
                 )}
               </section>
               <aside>
-                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div className="quest-actions"><button onClick={() => setSelectedQuest(surprise)}>View details</button><button className="surprise-complete" aria-label={surprise.status === "completed" ? `Completed ${surprise.title}` : `Complete ${surprise.title}`} disabled={busy || surprise.status !== "available" || now > Date.parse(surprise.dueAt) + surprise.grace * 60000 || (surprise.proofRequired && !surprise.proofUrl)} onClick={() => requestCompletion(surprise)}><span className="quest-check">{surprise.status === "completed" ? <Check size={18} /> : <span />}</span>{surprise.status === "completed" ? "Completed" : "Tick to complete"}</button>{surprise.proofRequired && <label className="button">{surprise.proofUrl ? "Replace photo" : "Upload photo proof"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) safe(async () => { const form = new FormData(); form.append("photo", file); const r = await fetch(`/api/quests/${encodeURIComponent(surprise.id)}/proof`, { method: "POST", headers: { "X-Level-Up": "local" }, body: form }); const data = await r.json(); if (!r.ok) throw Error(data.error); await refresh(); }); }} /></label>}</div></section>}
+                {surprise && <section className="card surprise-card"><div><span className="tag">TODAY'S SURPRISE · OPEN UNTIL NIGHT</span><h2>{surprise.title.replace(/^Surprise quest:\s*/, "")}</h2><p className="muted">{surprise.description}</p><p className="penalty-note">Miss it: lose 25% of today’s earned XP. If today’s gain is 0 XP, the loss is 0.</p></div><div className="quest-actions"><button onClick={() => setSelectedQuest(surprise)}>View details</button><button className="surprise-complete" aria-label={surprise.status === "completed" ? `Completed ${surprise.title}` : `Complete ${surprise.title}`} disabled={busy || surprise.status !== "available" || now > Date.parse(surprise.dueAt) + surprise.grace * 60000 || (surprise.proofRequired && !surprise.proofUrl)} onClick={() => requestCompletion(surprise)}><span className="quest-check">{surprise.status === "completed" ? <Check size={18} /> : <span />}</span>{surprise.status === "completed" ? "Completed" : "Tick to complete"}</button></div>{proofLinkControl(surprise)}</section>}
                 <div className="card">
                   <span className="tag">18:30 · CLOSE THE WORKDAY</span>
                   <h2>

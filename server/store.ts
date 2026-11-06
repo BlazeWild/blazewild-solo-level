@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
+import { DateTime } from "luxon";
 import {
   fresh,
   templateSchema,
@@ -8,6 +9,7 @@ import {
   type Template,
   localDate,
   utc,
+  totals,
 } from "../domain/model.js";
 import { materialize } from "../domain/engine.js";
 if (!process.env.DATABASE_URL) throw Error("DATABASE_URL is required; Neon is the authoritative database");
@@ -159,6 +161,77 @@ if (state && !state.audit.some(a => a.action === "active-rest-plan-v7")) {
   state.audit.push({ id: randomUUID(), at: instant, action: "active-rest-plan-v7", detail: "Cancelled the 4 Nov morning-training instance so active-rest basketball is the only morning exercise quest." });
   save(state); await flush();
 }
+if (state && !state.audit.some(a => a.action === "routine-and-rotation-v8")) {
+  const instant = new Date().toISOString();
+  const today = localDate(instant, state.settings.timezone);
+  const dayOffset = Math.floor(DateTime.fromISO(today).diff(DateTime.fromISO(state.settings.rotationAnchor), "days").days);
+  // Pull is the source of truth for today; the normal sequence then makes tomorrow Legs.
+  state.settings.wake = "07:55";
+  state.settings.rotationOffset = ((1 - dayOffset) % 5 + 5) % 5;
+  const rotationDay = (day: string) => ((Math.floor(DateTime.fromISO(day).diff(DateTime.fromISO(state!.settings.rotationAnchor), "days").days) + state!.settings.rotationOffset) % 5 + 5) % 5;
+  const wake = state.templates.find(t => t.title === "Wake & reset");
+  if (wake) Object.assign(wake, { start: "07:55", end: "08:00", description: "Wake at 7:55 AM. Water, brush teeth, and get ready for the day." });
+  const shower = state.templates.find(t => t.title === "Shower & breakfast" || t.title === "Brush, freshen up & shower");
+  if (shower) Object.assign(shower, { title: "Brush, freshen up & shower", start: "09:00", end: "10:00", description: "Brush, freshen up, and shower every day from 9:00 to 10:00 AM.", rewardXp: 0 });
+  const training = state.templates.find(t => t.title === "Morning training / planned recovery");
+  for (const template of state.templates) {
+    if (template.id === shower?.id || template.title === "Five-minute movement break" || template.title === "Lunch & 2,500-step walk") template.rewardXp = 0;
+  }
+  for (const quest of state.instances.filter(q => q.occurrence >= today && q.status !== "completed")) {
+    if (wake && quest.templateId === wake.id) {
+      const activeRest = rotationDay(quest.occurrence) === 4;
+      Object.assign(quest, activeRest
+        ? { title: "Wake at 6:30 AM", start: "06:30", end: "06:45", description: "Wake at 6:30 AM for active-rest-day basketball. Water, brush teeth, and get ready." }
+        : { title: "Wake at 7:55 AM", start: "07:55", end: "08:00", description: "Wake at 7:55 AM. Water, brush teeth, and get ready for the day." });
+      quest.opensAt = utc(quest.occurrence, quest.start, quest.timezone);
+      quest.dueAt = utc(quest.occurrence, quest.end, quest.timezone);
+    }
+    if (shower && quest.templateId === shower.id) {
+      Object.assign(quest, { title: shower.title, start: "09:00", end: "10:00", description: shower.description, rewardXp: 0 });
+      quest.opensAt = utc(quest.occurrence, quest.start, quest.timezone);
+      quest.dueAt = utc(quest.occurrence, quest.end, quest.timezone);
+    }
+    if (training && quest.templateId === training.id) {
+      const activeRest = rotationDay(quest.occurrence) === 4;
+      if (activeRest) quest.status = "cancelled";
+      else Object.assign(quest, { title: `${["Push", "Pull", "Legs", "Arms"][rotationDay(quest.occurrence)]} day training`, description: `Today is ${["Push", "Pull", "Legs", "Arms"][rotationDay(quest.occurrence)]} day. Follow the planned session; adjust for recovery when needed.` });
+    }
+    if (quest.templateId === shower?.id || quest.title === "Five-minute movement break" || quest.title === "Lunch & 2,500-step walk") quest.rewardXp = 0;
+  }
+  materialize(state, instant);
+  const current = totals(state);
+  state.ledger.push({ id: randomUUID(), key: "routine-and-rotation-v8-balance", at: instant, date: today, kind: "routine-adjustment", lifetime: 0, xp: 170 - current.xp, hp: 95 - current.hp, points: 0 });
+  state.audit.push({ id: randomUUID(), at: instant, action: "routine-and-rotation-v8", detail: "Set Pull for today and Legs tomorrow; wake is 7:55 except active-rest days at 6:30; daily brush/freshen/shower is 9:00–10:00; breaks and shower carry no XP; balance set to 170 XP and 95 virtual health." });
+  save(state); await flush();
+}
+if (state && !state.audit.some(a => a.action === "routine-and-rotation-v9")) {
+  const instant = new Date().toISOString();
+  const today = localDate(instant, state.settings.timezone);
+  const rotationDay = (day: string) => ((Math.floor(DateTime.fromISO(day).diff(DateTime.fromISO(state!.settings.rotationAnchor), "days").days) + state!.settings.rotationOffset) % 5 + 5) % 5;
+  const wake = state.templates.find(t => t.title === "Wake & reset");
+  const training = state.templates.find(t => t.title === "Morning training / planned recovery");
+  // The prior active-rest plan left today's stale instances cancelled. Re-open
+  // the two XP actions through tonight so they can be logged normally.
+  for (const quest of state.instances.filter(q => q.occurrence === today && q.status !== "completed")) {
+    if (wake && quest.templateId === wake.id) {
+      Object.assign(quest, { title: "Wake at 7:55 AM", start: "07:55", end: "23:59", description: "Wake at 7:55 AM. Record this once today.", status: "available" });
+      quest.opensAt = utc(today, "07:55", quest.timezone); quest.dueAt = utc(today, "23:59", quest.timezone);
+    }
+    if (training && quest.templateId === training.id) {
+      const name = ["Push", "Pull", "Legs", "Arms"][rotationDay(today)];
+      if (name) {
+        Object.assign(quest, { title: `${name} day training`, start: "08:00", end: "23:59", description: `Today is ${name} day. Record your planned session once today.`, status: "available" });
+        quest.opensAt = utc(today, "08:00", quest.timezone); quest.dueAt = utc(today, "23:59", quest.timezone);
+      }
+    }
+    if (quest.title === "Active-rest basketball" || quest.title === "Optional terrace walk or easy pull-ups") quest.status = "cancelled";
+  }
+  for (const entry of state.ledger.filter(l => l.date === today && l.kind === "expiry" && !l.reversed)) entry.reversed = true;
+  const current = totals(state);
+  state.ledger.push({ id: randomUUID(), key: "routine-and-rotation-v9-balance", at: instant, date: today, kind: "routine-adjustment", lifetime: 0, xp: 170 - current.xp, hp: 95 - current.hp, points: 0 });
+  state.audit.push({ id: randomUUID(), at: instant, action: "routine-and-rotation-v9", detail: "Removed stale active-rest instances from Pull day, reopened wake and Pull training through tonight for normal XP clicks, and retained 170 XP / 95 virtual health." });
+  save(state); await flush();
+}
 if (!state) {
     const now = new Date().toISOString(),
       s = fresh(now);
@@ -166,7 +239,7 @@ if (!state) {
       [
         "Wake & reset",
         "Recovery",
-        "07:45",
+        "07:55",
         "08:00",
         "Brush teeth, water, prepare for the day.",
         false,
@@ -180,11 +253,11 @@ if (!state) {
         true,
       ],
       [
-        "Shower & breakfast",
+        "Brush, freshen up & shower",
         "Recovery",
         "09:00",
-        "09:45",
-        "Fresh clothes, two eggs and a balanced breakfast.",
+        "10:00",
+        "Brush, freshen up, and shower every day from 9:00 to 10:00 AM.",
         false,
       ],
       [
@@ -248,6 +321,7 @@ if (!state) {
             startDate: s.settings.rotationAnchor,
             grace: title === "Close the workday" ? 120 : 15,
             penalty: required ? 5 : 0,
+            rewardXp: ["Brush, freshen up & shower", "Five-minute movement break", "Lunch & 2,500-step walk"].includes(title) ? 0 : undefined,
             habit: title === "Lunch & 2,500-step walk" ? "walking" : "general",
             target: title === "Lunch & 2,500-step walk" ? 2500 : 1,
           }),

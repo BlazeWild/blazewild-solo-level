@@ -78,7 +78,7 @@ async function createDailyAdventure() {
   const day = localDate(now(), read().settings.timezone), existing = read().instances.find(q => q.occurrence === day && q.proofRequired && q.title.startsWith("Surprise quest:"));
   if (existing) return existing;
   const adventure = await integrations.randomAdventure();
-  const value = templateSchema.parse({ title: `Surprise quest: ${adventure.title}`, description: `${adventure.description} This optional Kirtipur quest is open from 4:00 PM to 8:00 PM Nepal time; upload one photo as proof.`, category: adventure.category, habit: adventure.habit, difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "16:00", end: "20:00", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
+  const value = templateSchema.parse({ title: `Surprise quest: ${adventure.title}`, description: `${adventure.description} This optional Kirtipur quest is open from 4:00 PM to 8:00 PM Nepal time. Add a shareable Google Drive, Google Photos, or Google Docs link as proof.`, category: adventure.category, habit: adventure.habit, difficulty: "easy", recurrence: "once", timezone: "Asia/Kathmandu", start: "16:00", end: "20:00", startDate: day, grace: 0, target: 1, reminderLead: 15, required: false, penalty: 0, archived: false, proofRequired: true });
   const t = { ...value, id: randomUUID(), createdAt: now() };
   transaction(s => { s.templates.push(t); materialize(s, now()); audit(s, now(), "adventure", t.title); });
   return t;
@@ -155,6 +155,19 @@ app.post("/api/quests/:id/proof", upload.single("photo"), async (req, res) => {
   if (!read().instances.some(q => q.id === req.params.id)) throw Error("Quest not found");
   const id = randomUUID(); await putProof(id, String(req.params.id), req.file.mimetype, req.file.buffer);
   transaction((s) => { const q = s.instances.find(q => q.id === req.params.id); if (!q) throw Error("Quest not found"); q.proofUrl = `/api/proofs/${id}`; audit(s, now(), "photo-proof", q.title); });
+  res.json({ ok: true });
+});
+app.put("/api/quests/:id/proof-link", (req, res) => {
+  const proofUrl = z.string().url().max(2000).parse(req.body?.proofUrl);
+  const parsed = new URL(proofUrl);
+  if (parsed.protocol !== "https:") throw Error("Use a secure shared link (https)");
+  transaction((s) => {
+    const q = s.instances.find(q => q.id === req.params.id);
+    if (!q) throw Error("Quest not found");
+    if (!q.proofRequired) throw Error("This quest does not need photo proof");
+    q.proofUrl = proofUrl;
+    audit(s, now(), "photo-proof-link", q.title);
+  });
   res.json({ ok: true });
 });
 app.post("/api/quests/:id/:action", (req, res) => {

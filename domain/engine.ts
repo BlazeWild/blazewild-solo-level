@@ -29,6 +29,7 @@ function entry(s: State, now: string, key: string, fields: Partial<Ledger>) {
   });
 }
 export function materialize(s: State, now: string) {
+  const rotationNames = ["Push", "Pull", "Legs", "Arms", "Active rest"];
   const rotationDay = (day: string) =>
     ((Math.floor(DateTime.fromISO(day).diff(DateTime.fromISO(s.settings.rotationAnchor), "days").days) + s.settings.rotationOffset) % 5 + 5) % 5;
   const isActiveRestDay = (day: string) => rotationDay(day) === 4;
@@ -108,20 +109,33 @@ export function materialize(s: State, now: string) {
   const wake = s.templates.find(t => t.title === "Wake & reset");
   const training = s.templates.find(t => t.title === "Morning training / planned recovery");
   for (const quest of s.instances) {
-    if (!isActiveRestDay(quest.occurrence)) continue;
+    const activeRestDay = isActiveRestDay(quest.occurrence);
     if (training && quest.templateId === training.id && quest.status !== "completed") {
-      quest.status = "cancelled";
-      continue;
+      if (activeRestDay) {
+        quest.status = "cancelled";
+        continue;
+      }
+      quest.title = `${rotationNames[rotationDay(quest.occurrence)]} day training`;
+      quest.description = `Today is ${rotationNames[rotationDay(quest.occurrence)]} day. Follow the planned session; adjust for recovery when needed.`;
     }
     if (wake && quest.templateId === wake.id && quest.status !== "completed") {
+      if (activeRestDay) {
       Object.assign(quest, {
         title: "Wake at 6:30 AM", start: "06:30", end: "06:45",
         description: "Wake at 6:30 AM for active-rest-day basketball. Water, brush teeth, and get ready.",
       });
       quest.opensAt = utc(quest.occurrence, "06:30", quest.timezone);
       quest.dueAt = utc(quest.occurrence, "06:45", quest.timezone);
+      } else {
+        Object.assign(quest, {
+          title: "Wake at 7:55 AM", start: "07:55", end: "08:00",
+          description: "Wake at 7:55 AM. Water, brush teeth, and get ready for the day.",
+        });
+        quest.opensAt = utc(quest.occurrence, "07:55", quest.timezone);
+        quest.dueAt = utc(quest.occurrence, "08:00", quest.timezone);
+      }
     }
-    if (/^Lunch & 2,500-step walk$/.test(quest.title) && quest.status !== "completed") {
+    if (activeRestDay && /^Lunch & 2,500-step walk$/.test(quest.title) && quest.status !== "completed") {
       Object.assign(quest, {
         title: "Lunch & rest break",
         description: "Take your lunch break and rest. No walking or step target is needed on an active-rest day; this is a zero-XP recovery quest.",
@@ -303,7 +317,7 @@ export function act(
     )
       throw Error("Completion must be inside the quest window including grace");
     if (q.proofRequired && !q.proofUrl)
-      throw Error("Upload photo proof before completing this quest");
+      throw Error("Add a shared photo-proof link before completing this quest");
     if (q.habit === "walking" && q.target > 1) {
       if (!Number.isInteger(input.value) || input.value! < q.target)
         throw Error(`Enter at least ${q.target.toLocaleString()} steps to complete this quest`);

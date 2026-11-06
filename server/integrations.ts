@@ -302,20 +302,21 @@ async function generateGemini(prompt: string, generationConfig: Record<string, n
   throw Error(`Gemini is temporarily unavailable (${lastStatus}). Please retry in a moment.`);
 }
 export async function randomAdventure() {
-  // Deliberately local and varied: no invented destinations and no travel-only rotation.
+  // Deliberately local, varied, and easy to document through one shared photo link.
   const options = [
-    { title: "Kirtipur detail-photo walk", description: "Take a short, familiar-route walk in Kirtipur and photograph one interesting local detail.", category: "Consistency" as const, habit: "walking" as const },
-    { title: "Terrace sky reset", description: "Spend 10 quiet minutes on your terrace, breathe slowly, and photograph the sky or skyline.", category: "Recovery" as const, habit: "meditation" as const },
-    { title: "Five-object creativity challenge", description: "At home in Kirtipur, arrange five ordinary objects into a small creative composition and photograph it.", category: "Focus" as const, habit: "general" as const },
-    { title: "Refresh your space", description: "Reset one small surface, shelf, or desk area for 10–15 minutes and photograph the finished result.", category: "Recovery" as const, habit: "general" as const },
-    { title: "Kirtipur color hunt", description: "On a familiar nearby lane, find and photograph three colors that make you smile.", category: "Consistency" as const, habit: "walking" as const },
+    { title: "Kirtipur color hunt", description: "On a familiar nearby lane, find three colors that make you smile and take one photo containing them.", category: "Consistency" as const, habit: "walking" as const },
+    { title: "Kirtipur architecture hunt", description: "Find one doorway, window, roofline, or carved detail you like and take a photo of it.", category: "Focus" as const, habit: "walking" as const },
+    { title: "Shape hunt", description: "Find three different shapes in your surroundings—circle, triangle, square, or your own picks—and photograph the best one.", category: "Focus" as const, habit: "walking" as const },
+    { title: "Similar-things hunt", description: "Spot three things with a shared pattern, color, texture, or purpose and photograph the set or your favorite example.", category: "Consistency" as const, habit: "walking" as const },
+    { title: "Tree hunt", description: "Find a tree with an interesting trunk, leaves, shadow, or silhouette and take one thoughtful photo.", category: "Recovery" as const, habit: "walking" as const },
+    { title: "Home texture hunt", description: "At home, find an interesting texture—wood, fabric, light, steam, or shadow—and make one deliberate photo.", category: "Recovery" as const, habit: "general" as const },
   ];
   const fallback = () => options[Math.floor(Math.random() * options.length)];
   if (!process.env.GEMINI_API_KEY) return fallback();
   let data: any;
   try {
     data = await generateGemini(
-      `Choose exactly one number from this approved list of short, safe 10–25 minute quests in Kirtipur, Nepal. Some are at home; do not invent travel. Return only the number: ${options.map((v, i) => `${i + 1}. ${v.title}`).join(" | ")}`,
+      `Choose exactly one number from this approved list of short, safe 10–25 minute photo-hunt quests in Kirtipur, Nepal. Some are at home; do not invent travel. Return only the number: ${options.map((v, i) => `${i + 1}. ${v.title}`).join(" | ")}`,
       { temperature: 0.5, maxOutputTokens: 30 },
     );
   } catch {

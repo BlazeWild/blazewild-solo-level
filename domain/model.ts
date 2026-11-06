@@ -217,7 +217,7 @@ export function fresh(now: string): State {
       rotationOffset: 0,
       deskWeek: 0,
       stepGoal: 5000,
-      wake: "07:45",
+      wake: "07:55",
       workStart: "10:00",
       workEnd: "18:30",
       lunch: "15:00",
